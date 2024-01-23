@@ -1,0 +1,6 @@
+listen_address = '0.0.0.0'
+listen_port = 14770
+repo_owner = "DigitalPulseSoftware"
+game_repository = "ThisSpaceOfMine"
+updater_repository = "ThisUpdaterOfMine"
+updater_filename = "this_updater_of_mine"
