@@ -15,6 +15,7 @@ struct AppConfig {
     game_repository: String,
     updater_repository: String,
     updater_filename: String,
+    github_pat: Option<String>
 }
 
 impl Default for AppConfig {
@@ -26,6 +27,7 @@ impl Default for AppConfig {
             game_repository: "ThisSpaceOfMine".to_string(),
             updater_filename: "this_updater_of_mine".to_string(),
             updater_repository: "ThisUpdaterOfMine".to_string(),
+            github_pat: None
         }
     }
 }
@@ -342,6 +344,12 @@ async fn main() -> Result<(), std::io::Error> {
 
     std::env::set_var("RUST_LOG", "info,actix_web=info");
     env_logger::init();
+
+    let mut octocrab = octocrab::OctocrabBuilder::default();
+    if let Some(github_pat) = config.github_pat.as_ref() {
+        octocrab = octocrab.personal_token(github_pat.clone());
+    }
+    let _octocrab = octocrab.build().expect("failed to create octocrab instance");
 
     let bind_address = format!("{}:{}", config.listen_address, config.listen_port);
 
