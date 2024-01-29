@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use futures::future::join_all;
 use octocrab::repos::RepoHandler;
 use octocrab::{Octocrab, OctocrabBuilder};
 use semver::Version;
@@ -13,6 +14,8 @@ pub struct Fetcher {
     octocrab: Octocrab,
     game_repo: Repo,
     updater_repo: Repo,
+
+    checksum_fetcher: ChecksumFetcher,
 }
 
 struct ChecksumFetcher(reqwest::Client);
@@ -37,6 +40,8 @@ impl Fetcher {
             octocrab: octocrab.build()?,
             game_repo: Repo::new(&config.repo_owner, &config.game_repository),
             updater_repo: Repo::new(&config.repo_owner, &config.updater_repository),
+
+            checksum_fetcher: ChecksumFetcher::new(),
         })
     }
 
@@ -58,45 +63,46 @@ impl Fetcher {
             .filter(|r| !r.prerelease)
             .filter_map(|r| Version::parse(&r.tag_name).ok().map(|v| (v, r)));
 
-        let checksum_fetcher = ChecksumFetcher::new();
         let mut game_releases = Vec::new();
         let mut latest_assets = None;
 
         for (version, release) in versions_released {
-            let (mut binaries, assets) = release.assets.iter().fold(
-                (HashMap::new(), None),
-                |(mut binaries, assets), asset| {
-                    let platform = remove_game_suffix(&asset.name);
-                    let asset = Asset::from(asset);
-
-                    match (asset.name.ends_with(".sha256"), platform) {
-                        (false, "assets") => return (binaries, Some(asset)),
-                        (false, platform) => {
-                            binaries.insert(platform.to_string(), asset);
-                        }
+            let assets = release
+                .assets
+                .iter()
+                .filter_map(|asset| {
+                    match asset.name.ends_with(".sha256") {
+                        false => Some(Asset::from(asset)),
                         // sha256 files ignored, they will be searched by the ChecksumFetcher
-                        (true, _) => (),
-                    };
+                        true => None,
+                    }
+                })
+                .collect::<Vec<Asset>>();
 
-                    (binaries, assets)
-                },
-            );
+            let checksums = join_all(
+                assets
+                    .iter()
+                    .map(|asset| self.checksum_fetcher.resolve(asset)),
+            )
+            .await;
 
-            for (_, binary) in binaries.iter_mut() {
-                binary.checksum = match checksum_fetcher.resolve(binary).await {
+            let mut binaries = HashMap::new();
+
+            let assets_and_checksums = assets.into_iter().zip(checksums);
+
+            for (mut asset, checksum) in assets_and_checksums {
+                asset.checksum = match checksum {
                     Ok(checksum) => Some(checksum),
                     Err(FetcherError::ReqwestError(_)) => None,
                     Err(err) => return Err(err),
                 };
-            }
 
-            if let Some(mut asset) = assets {
-                asset.checksum = match checksum_fetcher.resolve(&asset).await {
-                    Ok(checksum) => Some(checksum),
-                    Err(FetcherError::ReqwestError(_)) => None,
-                    Err(err) => return Err(err),
-                };
-                latest_assets = Some((version.clone(), asset));
+                let platform = remove_game_suffix(&asset.name);
+                if platform == "assets" {
+                    latest_assets = Some((version.clone(), asset));
+                } else {
+                    binaries.insert(platform.to_string(), asset);
+                }
             }
 
             let Some((assets_version, assets)) = latest_assets.as_ref() else {
@@ -123,27 +129,36 @@ impl Fetcher {
             return Err(FetcherError::NoUpdaterReleaseFound);
         };
 
-        let checksum_fetcher = ChecksumFetcher::new();
-        let mut binaries = last_release
+        let assets = last_release
             .assets
             .iter()
             .filter_map(|asset| {
-                let platform = remove_game_suffix(asset.name.as_str());
-                let asset = Asset::from(asset);
-
                 match asset.name.ends_with(".sha256") {
-                    false => Some((platform.to_string(), asset)),
+                    false => Some(Asset::from(asset)),
+                    // sha256 files ignored, they will be searched by the ChecksumFetcher
                     true => None,
                 }
             })
-            .collect::<HashMap<String, Asset>>();
+            .collect::<Vec<Asset>>();
 
-        for (_, binary) in binaries.iter_mut() {
-            binary.checksum = match checksum_fetcher.resolve(binary).await {
+        let checksums = join_all(
+            assets
+                .iter()
+                .map(|asset| self.checksum_fetcher.resolve(asset)),
+        )
+        .await;
+
+        let mut binaries = HashMap::new();
+
+        let assets_and_checksums = assets.into_iter().zip(checksums);
+        for (mut asset, checksum) in assets_and_checksums {
+            asset.checksum = match checksum {
                 Ok(checksum) => Some(checksum),
                 Err(FetcherError::ReqwestError(_)) => None,
                 Err(err) => return Err(err),
             };
+
+            binaries.insert(remove_game_suffix(asset.name.as_str()).to_string(), asset);
         }
 
         Ok(binaries)
