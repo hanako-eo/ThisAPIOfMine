@@ -7,11 +7,12 @@ edition = "2021"
 
 [dependencies]
 actix-web = "4.4"
-cached = { version = "0.48", features = ["async"]}
+cached = { version = "0.48", features = ["async"] }
 confy = "0.6"
 env_logger = "0.10"
 octocrab = "0.33"
 reqwest = "0.11"
+secure-string = { version = "0.3", features = ["serde"] }
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 url = "2.5"

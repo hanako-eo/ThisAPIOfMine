@@ -29,8 +29,8 @@ pub enum FetcherError {
 impl Fetcher {
     pub fn from_config(config: &ApiConfig) -> Result<Self> {
         let mut octocrab = OctocrabBuilder::default();
-        if let Some(github_pat) = config.github_pat.clone() {
-            octocrab = octocrab.personal_token(github_pat);
+        if let Some(github_pat) = &config.github_pat {
+            octocrab = octocrab.personal_token(github_pat.unsecure().to_string());
         }
 
         Ok(Self {

@@ -1,3 +1,4 @@
+use secure_string::SecureString;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -9,7 +10,7 @@ pub struct ApiConfig {
     pub updater_repository: String,
     pub updater_filename: String,
     pub cache_lifespan: u64,
-    pub github_pat: Option<String>,
+    pub github_pat: Option<SecureString>,
 }
 
 impl Default for ApiConfig {
