@@ -19,6 +19,7 @@ pub struct Repo {
     repository: String,
 }
 
+#[derive(Clone)]
 pub struct GameRelease {
     pub assets: Asset,
     pub assets_version: Version,

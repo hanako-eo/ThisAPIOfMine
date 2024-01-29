@@ -8,6 +8,7 @@ pub struct ApiConfig {
     pub game_repository: String,
     pub updater_repository: String,
     pub updater_filename: String,
+    pub cache_lifespan: u64,
     pub github_pat: Option<String>,
 }
 
@@ -20,6 +21,7 @@ impl Default for ApiConfig {
             game_repository: "ThisSpaceOfMine".to_string(),
             updater_filename: "this_updater_of_mine".to_string(),
             updater_repository: "ThisUpdaterOfMine".to_string(),
+            cache_lifespan: 5 * 60,
             github_pat: None,
         }
     }

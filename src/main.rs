@@ -1,5 +1,10 @@
+use std::collections::HashMap;
+use std::sync::Mutex;
+
 use actix_web::{get, middleware, web, App, HttpServer};
 use actix_web::{HttpResponse, Responder};
+use cached::{CachedAsync, TimedCache};
+use game_data::{Asset, GameRelease};
 use serde::Deserialize;
 
 use crate::config::ApiConfig;
@@ -16,8 +21,15 @@ struct VersionQuery {
 }
 
 struct AppData {
+    cache: Mutex<TimedCache<&'static str, CachedReleased>>,
     config: ApiConfig,
     fetcher: Fetcher,
+}
+
+#[derive(Clone)]
+enum CachedReleased {
+    Updater(HashMap<String, Asset>),
+    Game(Vec<GameRelease>),
 }
 
 #[get("/game_version")]
@@ -25,19 +37,29 @@ async fn game_version(
     app_data: web::Data<AppData>,
     ver_query: web::Query<VersionQuery>,
 ) -> impl Responder {
-    let AppData { config, fetcher } = app_data.as_ref();
+    let AppData {
+        cache,
+        config,
+        fetcher,
+    } = app_data.as_ref();
+    let mut cache = cache.lock().unwrap();
 
-    let Ok(updater_releases) = fetcher.get_updater_releases().await else {
+    // TODO: remove .cloned
+    let Ok(CachedReleased::Updater(updater_releases)) = cache.try_get_or_set_with("updater_releases", || async {
+        fetcher.get_updater_releases().await.map(CachedReleased::Updater)
+    }).await.cloned() else {
         return HttpResponse::InternalServerError().finish();
     };
 
-    let Ok(game_releases) = fetcher.get_game_releases().await else {
+    // TODO: remove .cloned
+    let Ok(CachedReleased::Game(game_releases)) = cache.try_get_or_set_with("game_releases", || async {
+        fetcher.get_game_releases().await.map(CachedReleased::Game)
+    }).await.cloned() else {
         return HttpResponse::InternalServerError().finish();
     };
 
+    let updater_filename = format!("{}_{}", &ver_query.platform, config.updater_filename);
     let game_release = game_releases.into_iter().rev().find_map(|release| {
-        let updater_filename = format!("{}_{}", &ver_query.platform, config.updater_filename);
-
         let updater_release = updater_releases.get(&updater_filename)?;
 
         release
@@ -74,7 +96,11 @@ async fn main() -> Result<(), std::io::Error> {
 
     let bind_address = format!("{}:{}", config.listen_address, config.listen_port);
 
-    let data_config = web::Data::new(AppData { config, fetcher });
+    let data_config = web::Data::new(AppData {
+        cache: Mutex::new(TimedCache::with_lifespan(config.cache_lifespan)), // 5min
+        config,
+        fetcher,
+    });
 
     HttpServer::new(move || {
         App::new()
