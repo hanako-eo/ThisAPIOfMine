@@ -19,11 +19,13 @@ pub struct Repo {
     repository: String,
 }
 
+pub type Assets = HashMap<String, Asset>;
+
 #[derive(Clone)]
 pub struct GameRelease {
     pub assets: Asset,
     pub assets_version: Version,
-    pub binaries: HashMap<String, Asset>,
+    pub binaries: Assets,
     pub version: Version,
 }
 

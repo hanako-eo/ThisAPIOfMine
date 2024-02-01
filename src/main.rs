@@ -29,7 +29,7 @@ struct AppData {
 #[derive(Clone)]
 enum CachedReleased {
     Updater(HashMap<String, Asset>),
-    Game(Vec<GameRelease>),
+    Game(GameRelease),
 }
 
 #[get("/game_version")]
@@ -45,45 +45,50 @@ async fn game_version(
     let mut cache = cache.lock().unwrap();
 
     // TODO: remove .cloned
-    let Ok(CachedReleased::Updater(updater_releases)) = cache.try_get_or_set_with("updater_releases", || async {
-        fetcher.get_updater_releases().await.map(CachedReleased::Updater)
-    }).await.cloned() else {
+    let Ok(CachedReleased::Updater(updater_release)) = cache
+        .try_get_or_set_with("latest_updater_release", || async {
+            fetcher
+                .get_latest_updater_release()
+                .await
+                .map(CachedReleased::Updater)
+        })
+        .await
+        .cloned()
+    else {
         return HttpResponse::InternalServerError().finish();
     };
 
     // TODO: remove .cloned
-    let Ok(CachedReleased::Game(game_releases)) = cache.try_get_or_set_with("game_releases", || async {
-        fetcher.get_game_releases().await.map(CachedReleased::Game)
-    }).await.cloned() else {
+    let Ok(CachedReleased::Game(game_release)) = cache
+        .try_get_or_set_with("latest_game_release", || async {
+            fetcher
+                .get_latest_game_release()
+                .await
+                .map(CachedReleased::Game)
+        })
+        .await
+        .cloned()
+    else {
         return HttpResponse::InternalServerError().finish();
     };
 
-    let updater_filename = format!("{}_{}", &ver_query.platform, config.updater_filename);
-    let game_release = game_releases.into_iter().rev().find_map(|release| {
-        let updater_release = updater_releases.get(&updater_filename)?;
+    let updater_filename = format!("{}_{}", ver_query.platform, config.updater_filename);
 
-        release
-            .binaries
-            .get(&ver_query.platform)
-            .map(|binaries| GameVersion {
-                assets: release.assets,
-                assets_version: release.assets_version.to_string(),
-                binaries: binaries.clone(),
-                updater: updater_release.clone(),
-                version: release.version.to_string(),
-            })
-    });
+    let (Some(updater), Some(binary)) = (updater_release.get(&updater_filename), game_release.binaries.get(&ver_query.platform)) else {
+        eprintln!(
+            "no updater or game binary release found for platform {}",
+            ver_query.platform
+        );
+        return HttpResponse::NotFound().finish();
+    };
 
-    match game_release {
-        Some(response) => HttpResponse::Ok().json(web::Json(response)),
-        None => {
-            eprintln!(
-                "no updater release found for platform {}",
-                ver_query.platform
-            );
-            HttpResponse::NotFound().finish()
-        }
-    }
+    HttpResponse::Ok().json(web::Json(GameVersion {
+        assets: game_release.assets,
+        assets_version: game_release.assets_version.to_string(),
+        binaries: binary.clone(),
+        updater: updater.clone(),
+        version: game_release.version.to_string(),
+    }))
 }
 
 #[actix_web::main]
