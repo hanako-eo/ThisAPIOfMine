@@ -10,7 +10,7 @@ pub struct Asset {
     // serialisation skipped to race with the previous api
     #[serde(skip_serializing)]
     pub name: String,
-    pub url: String,
+    pub download_url: String,
     pub checksum: Option<String>,
 }
 
@@ -43,7 +43,7 @@ impl From<&repos::Asset> for Asset {
         Self {
             size: asset.size,
             name: asset.name.clone(),
-            url: asset.browser_download_url.to_string(),
+            download_url: asset.browser_download_url.to_string(),
             checksum: None,
         }
     }

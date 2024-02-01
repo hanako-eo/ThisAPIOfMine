@@ -166,7 +166,7 @@ impl ChecksumFetcher {
     async fn resolve(&self, asset: &Asset) -> Result<String> {
         let response = self
             .0
-            .get(format!("{}.sha256", asset.url))
+            .get(format!("{}.sha256", asset.download_url))
             .send()
             .await?
             .text()
