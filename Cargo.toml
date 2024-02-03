@@ -9,7 +9,7 @@ edition = "2021"
 actix-web = "4.4"
 cached = { version = "0.48", features = ["async"] }
 confy = "0.6"
-env_logger = "0.10"
+env_logger = "0.11"
 futures = "0.3"
 octocrab = "0.33"
 reqwest = "0.11"
