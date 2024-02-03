@@ -56,14 +56,15 @@ impl Fetcher {
             .send()
             .await?;
 
-        let mut versions_released = releases
+        let versions_released = releases
             .into_iter()
             .filter(|r| !r.prerelease)
             .filter_map(|r| Version::parse(&r.tag_name).ok().map(|v| (v, r)));
 
         let mut latest_assets = None;
 
-        let Some((latest_version, latest_release)) = versions_released.next() else {
+        let mut peekable_releases = versions_released.clone().peekable();
+        let Some((latest_version, latest_release)) = peekable_releases.peek().cloned() else {
             return Err(FetcherError::NoReleaseFound);
         };
 
