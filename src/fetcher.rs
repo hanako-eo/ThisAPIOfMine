@@ -26,6 +26,7 @@ pub enum FetcherError {
     InvalidSha256(usize),
     WrongChecksum,
     NoReleaseFound,
+    InvalidVersion,
 }
 
 impl Fetcher {
@@ -56,52 +57,50 @@ impl Fetcher {
             .send()
             .await?;
 
-        let versions_released = releases
+        let mut versions_released = releases
             .into_iter()
             .filter(|r| !r.prerelease)
             .filter_map(|r| Version::parse(&r.tag_name).ok().map(|v| (v, r)));
 
-        let mut latest_assets = None;
-
-        let mut peekable_releases = versions_released.clone().peekable();
-        let Some((latest_version, latest_release)) = peekable_releases.peek().cloned() else {
+        let Some((latest_version, latest_release)) = versions_released.next() else {
             return Err(FetcherError::NoReleaseFound);
         };
 
-        let binaries = self
-            .get_assets_and_checksums(&latest_release.assets)
+        let mut binaries = self
+            .get_assets_and_checksums(&latest_release.assets, &latest_version, None)
             .await
-            .map(|(mut asset, checksum)| {
+            .map(|((platform, mut asset), checksum)| {
                 asset.checksum = match checksum {
                     Ok(checksum) => Some(checksum),
                     Err(FetcherError::ReqwestError(_)) => None,
                     Err(err) => return Err(err),
                 };
 
-                Ok((remove_game_suffix(asset.name.as_str()).to_string(), asset))
+                Ok((platform.to_string(), asset))
             })
             .collect::<Result<Assets>>()?;
 
-        'outer: for (version, release) in versions_released {
-            for asset in release.assets {
-                if remove_game_suffix(asset.name.as_str()) == "assets" {
-                    let mut asset = Asset::from(&asset);
-                    asset.checksum = match self.checksum_fetcher.resolve(&asset).await {
-                        Ok(checksum) => Some(checksum),
-                        Err(FetcherError::ReqwestError(_)) => None,
-                        Err(err) => return Err(err),
-                    };
+        for (version, release) in versions_released {
+            for ((platform, mut asset), checksum) in self
+                .get_assets_and_checksums(&release.assets, &version, Some(&binaries))
+                .await
+            {
+                asset.checksum = match checksum {
+                    Ok(checksum) => Some(checksum),
+                    Err(FetcherError::ReqwestError(_)) => None,
+                    Err(err) => return Err(err),
+                };
 
-                    latest_assets = Some((version.clone(), asset));
-                    break 'outer;
-                }
+                binaries.insert(platform.to_string(), asset);
             }
         }
 
+        let latest_assets = binaries.remove("assets");
+
         match latest_assets {
-            Some((assets_version, assets)) => Ok(GameRelease {
+            Some(assets) => Ok(GameRelease {
+                assets_version: assets.version.clone(),
                 assets,
-                assets_version,
                 binaries,
                 version: latest_version,
             }),
@@ -116,42 +115,48 @@ impl Fetcher {
             .get_latest()
             .await?;
 
-        self.get_assets_and_checksums(&last_release.assets)
+        let version = Version::parse(&last_release.tag_name)?;
+
+        self.get_assets_and_checksums(&last_release.assets, &version, None)
             .await
-            .map(|(mut asset, checksum)| {
+            .map(|((platform, mut asset), checksum)| {
                 asset.checksum = match checksum {
                     Ok(checksum) => Some(checksum),
                     Err(FetcherError::ReqwestError(_)) => None,
                     Err(err) => return Err(err),
                 };
 
-                Ok((remove_game_suffix(asset.name.as_str()).to_string(), asset))
+                Ok((platform.to_string(), asset))
             })
             .collect::<Result<Assets>>()
     }
 
-    async fn get_assets_and_checksums<'a, 'b, A>(
+    async fn get_assets_and_checksums<'a: 'b, 'b, A>(
         &self,
         assets: A,
-    ) -> impl Iterator<Item = (Asset, Result<String>)>
+        version: &Version,
+        binaries: Option<&Assets>,
+    ) -> impl Iterator<Item = ((&'b str, Asset), Result<String>)>
     where
         A: IntoIterator<Item = &'a repos::Asset>,
     {
         let assets = assets
             .into_iter()
             .filter_map(|asset| {
-                match asset.name.ends_with(".sha256") {
-                    false => Some(Asset::from(asset)),
-                    // sha256 files ignored, they will be searched by the ChecksumFetcher
-                    true => None,
+                let platform = remove_game_suffix(asset.name.as_str());
+                match !asset.name.ends_with(".sha256")
+                    && !binaries.is_some_and(|b| b.contains_key(platform))
+                {
+                    true => Some((platform, Asset::with_version(asset, version.clone()))),
+                    false => None,
                 }
             })
-            .collect::<Vec<Asset>>();
+            .collect::<Vec<(&str, Asset)>>();
 
         let checksums = join_all(
             assets
                 .iter()
-                .map(|asset| self.checksum_fetcher.resolve(asset)),
+                .map(|(_, asset)| self.checksum_fetcher.resolve(asset)),
         )
         .await;
 
@@ -198,6 +203,12 @@ impl From<octocrab::Error> for FetcherError {
 impl From<reqwest::Error> for FetcherError {
     fn from(err: reqwest::Error) -> Self {
         FetcherError::ReqwestError(err)
+    }
+}
+
+impl From<semver::Error> for FetcherError {
+    fn from(_: semver::Error) -> Self {
+        FetcherError::InvalidVersion
     }
 }
 

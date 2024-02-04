@@ -10,6 +10,8 @@ pub struct Asset {
     // serialisation skipped to race with the previous api
     #[serde(skip_serializing)]
     pub name: String,
+    #[serde(skip_serializing)]
+    pub version: Version,
     pub download_url: String,
     pub checksum: Option<String>,
 }
@@ -38,13 +40,14 @@ pub struct GameVersion {
     pub version: String,
 }
 
-impl From<&repos::Asset> for Asset {
-    fn from(asset: &repos::Asset) -> Self {
+impl Asset {
+    pub fn with_version(asset: &repos::Asset, version: Version) -> Self {
         Self {
             size: asset.size,
             name: asset.name.clone(),
             download_url: asset.browser_download_url.to_string(),
             checksum: None,
+            version,
         }
     }
 }
