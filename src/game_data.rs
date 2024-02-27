@@ -13,7 +13,7 @@ pub struct Asset {
     #[serde(skip_serializing)]
     pub version: Version,
     pub download_url: String,
-    pub checksum: Option<String>,
+    pub sha256: Option<String>,
 }
 
 pub struct Repo {
@@ -46,7 +46,7 @@ impl Asset {
             size: asset.size,
             name: asset.name.clone(),
             download_url: asset.browser_download_url.to_string(),
-            checksum: None,
+            sha256: None,
             version,
         }
     }

@@ -69,9 +69,9 @@ impl Fetcher {
         let mut binaries = self
             .get_assets_and_checksums(&latest_release.assets, &latest_version, None)
             .await
-            .map(|((platform, mut asset), checksum)| {
-                asset.checksum = match checksum {
-                    Ok(checksum) => Some(checksum),
+            .map(|((platform, mut asset), sha256)| {
+                asset.sha256 = match sha256 {
+                    Ok(sha256) => Some(sha256),
                     Err(FetcherError::ReqwestError(_)) => None,
                     Err(err) => return Err(err),
                 };
@@ -81,12 +81,12 @@ impl Fetcher {
             .collect::<Result<Assets>>()?;
 
         for (version, release) in versions_released {
-            for ((platform, mut asset), checksum) in self
+            for ((platform, mut asset), sha256) in self
                 .get_assets_and_checksums(&release.assets, &version, Some(&binaries))
                 .await
             {
-                asset.checksum = match checksum {
-                    Ok(checksum) => Some(checksum),
+                asset.sha256 = match sha256 {
+                    Ok(sha256) => Some(sha256),
                     Err(FetcherError::ReqwestError(_)) => None,
                     Err(err) => return Err(err),
                 };
@@ -119,9 +119,9 @@ impl Fetcher {
 
         self.get_assets_and_checksums(&last_release.assets, &version, None)
             .await
-            .map(|((platform, mut asset), checksum)| {
-                asset.checksum = match checksum {
-                    Ok(checksum) => Some(checksum),
+            .map(|((platform, mut asset), sha256)| {
+                asset.sha256 = match sha256 {
+                    Ok(sha256) => Some(sha256),
                     Err(FetcherError::ReqwestError(_)) => None,
                     Err(err) => return Err(err),
                 };
