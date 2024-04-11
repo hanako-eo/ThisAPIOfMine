@@ -1,0 +1,37 @@
+version: '3.9'
+services:
+  postgres:
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_USER_FILE: /run/secrets/pgsql-user
+      POSTGRES_PASSWORD_FILE: /run/secrets/pgsql-password
+      POSTGRES_DB_FILE: /run/secrets/pgsql-db
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    networks:
+      - postgres
+    volumes:
+      - "./psql/pgdata:/var/lib/postgresql/data/pgdata"
+      - "./psql/secrets:/run/secrets"
+
+  api:
+    depends_on: ['postgres']
+    build:
+      dockerfile: Dockerfile
+      context: .
+    ports:
+      - '127.0.0.1:14770:14770'
+    networks:
+      - tsom_api
+    links:
+      - postgres
+    volumes:
+      - './tsom_api_config.toml:/app/tsom_api_config.toml'
+
+networks:
+  tsom_api:
+    driver: bridge
+  postgres:
+    driver: bridge
