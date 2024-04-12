@@ -17,10 +17,10 @@ RUN cargo build --release
 
 FROM alpine:3 AS runtime
 
-EXPOSE 8080
+EXPOSE 14770
 
 WORKDIR /app
 
-COPY --from=builder /app/tsom_api/target/release ./
+COPY --from=builder /app/tsom_api/target/release/this_api_of_mine ./
 
 CMD ["/app/this_api_of_mine"]

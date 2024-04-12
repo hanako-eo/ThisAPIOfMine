@@ -10,8 +10,8 @@ services:
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
-    networks:
-      - postgres
+#    networks:
+#      - postgres
     volumes:
       - "./psql/pgdata:/var/lib/postgresql/data/pgdata"
       - "./psql/secrets:/run/secrets"
@@ -22,7 +22,7 @@ services:
       dockerfile: Dockerfile
       context: .
     ports:
-      - '127.0.0.1:14770:14770'
+      - '14770:14770'
     networks:
       - tsom_api
     links:
@@ -33,5 +33,5 @@ services:
 networks:
   tsom_api:
     driver: bridge
-  postgres:
-    driver: bridge
+#  postgres:
+#    driver: bridge
