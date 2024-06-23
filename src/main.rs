@@ -7,23 +7,23 @@ use cached::{CachedAsync, TimedCache};
 use game_data::{Asset, GameRelease};
 use serde::Deserialize;
 
+use crate::app_data::AppData;
 use crate::config::ApiConfig;
 use crate::fetcher::Fetcher;
 use crate::game_data::GameVersion;
+use crate::players::create_player;
 
+mod app_data;
 mod config;
 mod fetcher;
 mod game_data;
+mod players;
+
+use tokio_postgres::{NoTls};
 
 #[derive(Deserialize)]
 struct VersionQuery {
     platform: String,
-}
-
-struct AppData {
-    cache: Mutex<TimedCache<&'static str, CachedReleased>>,
-    config: ApiConfig,
-    fetcher: Fetcher,
 }
 
 #[derive(Clone)]
@@ -74,7 +74,10 @@ async fn game_version(
 
     let updater_filename = format!("{}_{}", ver_query.platform, config.updater_filename);
 
-    let (Some(updater), Some(binary)) = (updater_release.get(&updater_filename), game_release.binaries.get(&ver_query.platform)) else {
+    let (Some(updater), Some(binary)) = (
+        updater_release.get(&updater_filename),
+        game_release.binaries.get(&ver_query.platform),
+    ) else {
         eprintln!(
             "no updater or game binary release found for platform {}",
             ver_query.platform
@@ -91,12 +94,35 @@ async fn game_version(
     }))
 }
 
+fn setup_pg_pool(api_config: &ApiConfig) -> deadpool_postgres::Pool {
+    use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
+
+    let mut pg_config = Config::new();
+    pg_config.host = Some(api_config.db_host.clone());
+    pg_config.password = Some(api_config.db_password.unsecure().to_string());
+    pg_config.user = Some(api_config.db_user.clone());
+    pg_config.dbname = Some(api_config.db_database.clone());
+    pg_config.manager = Some(ManagerConfig {
+        recycling_method: RecyclingMethod::Fast,
+    });
+
+    pg_config.create_pool(Some(Runtime::Tokio1), NoTls).unwrap()
+}
+
 #[actix_web::main]
 async fn main() -> Result<(), std::io::Error> {
-    let config: ApiConfig = confy::load_path("tsom_api_config.toml").unwrap();
+    let Ok(config) = confy::load_path("tsom_api_config.toml") else {
+        panic!("failed to load config, please check tsom_api_config.toml");
+    };
     let fetcher = Fetcher::from_config(&config).unwrap();
 
-    std::env::set_var("RUST_LOG", "info,actix_web=info");
+    let pg_pool = web::Data::new(setup_pg_pool(&config));
+
+    // Try to connect to database
+    let test_client = pg_pool.get().await.expect("failed to connect to database");
+    drop(test_client);
+
+    std::env::set_var("RUST_LOG", "debug,actix_web=debug");
     env_logger::init();
 
     let bind_address = format!("{}:{}", config.listen_address, config.listen_port);
@@ -111,7 +137,9 @@ async fn main() -> Result<(), std::io::Error> {
         App::new()
             .wrap(middleware::Logger::default())
             .app_data(data_config.clone())
+            .app_data(pg_pool.clone())
             .service(game_version)
+            .service(create_player)
     })
     .bind(bind_address)?
     .run()
