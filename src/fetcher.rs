@@ -5,9 +5,8 @@ use octocrab::{Octocrab, OctocrabBuilder};
 use semver::Version;
 
 use crate::config::ApiConfig;
+use crate::errors::fetcher::{FetchResult, FetcherError};
 use crate::game_data::{Asset, Assets, GameRelease, Repo};
-
-type Result<T> = std::result::Result<T, FetcherError>;
 
 pub struct Fetcher {
     octocrab: Octocrab,
@@ -19,18 +18,8 @@ pub struct Fetcher {
 
 struct ChecksumFetcher(reqwest::Client);
 
-#[derive(Debug)]
-pub enum FetcherError {
-    OctoError(octocrab::Error),
-    ReqwestError(reqwest::Error),
-    InvalidSha256(usize),
-    WrongChecksum,
-    NoReleaseFound,
-    InvalidVersion,
-}
-
 impl Fetcher {
-    pub fn from_config(config: &ApiConfig) -> Result<Self> {
+    pub fn from_config(config: &ApiConfig) -> FetchResult<Self> {
         let mut octocrab = OctocrabBuilder::default();
         if let Some(github_pat) = &config.github_pat {
             octocrab = octocrab.personal_token(github_pat.unsecure().to_string());
@@ -49,7 +38,7 @@ impl Fetcher {
         self.octocrab.repos(repo.owner(), repo.repository())
     }
 
-    pub async fn get_latest_game_release(&self) -> Result<GameRelease> {
+    pub async fn get_latest_game_release(&self) -> FetchResult<GameRelease> {
         let releases = self
             .on_repo(&self.game_repo)
             .releases()
@@ -78,7 +67,7 @@ impl Fetcher {
 
                 Ok((platform.to_string(), asset))
             })
-            .collect::<Result<Assets>>()?;
+            .collect::<FetchResult<Assets>>()?;
 
         for (version, release) in versions_released {
             for ((platform, mut asset), sha256) in self
@@ -108,7 +97,7 @@ impl Fetcher {
         }
     }
 
-    pub async fn get_latest_updater_release(&self) -> Result<Assets> {
+    pub async fn get_latest_updater_release(&self) -> FetchResult<Assets> {
         let last_release = self
             .on_repo(&self.updater_repo)
             .releases()
@@ -128,7 +117,7 @@ impl Fetcher {
 
                 Ok((platform.to_string(), asset))
             })
-            .collect::<Result<Assets>>()
+            .collect::<FetchResult<Assets>>()
     }
 
     async fn get_assets_and_checksums<'a: 'b, 'b, A>(
@@ -136,7 +125,7 @@ impl Fetcher {
         assets: A,
         version: &Version,
         binaries: Option<&Assets>,
-    ) -> impl Iterator<Item = ((&'b str, Asset), Result<String>)>
+    ) -> impl Iterator<Item = ((&'b str, Asset), FetchResult<String>)>
     where
         A: IntoIterator<Item = &'a repos::Asset>,
     {
@@ -169,7 +158,7 @@ impl ChecksumFetcher {
         Self(reqwest::Client::new())
     }
 
-    async fn resolve(&self, asset: &Asset) -> Result<String> {
+    async fn resolve(&self, asset: &Asset) -> FetchResult<String> {
         let response = self
             .0
             .get(format!("{}.sha256", asset.download_url))
@@ -180,7 +169,7 @@ impl ChecksumFetcher {
         self.parse_response(asset.name.as_str(), response.as_str())
     }
 
-    fn parse_response(&self, asset_name: &str, response: &str) -> Result<String> {
+    fn parse_response(&self, asset_name: &str, response: &str) -> FetchResult<String> {
         let parts: Vec<_> = response.split_whitespace().collect();
         if parts.len() != 2 {
             return Err(FetcherError::InvalidSha256(parts.len()));
@@ -191,24 +180,6 @@ impl ChecksumFetcher {
             false => Ok(sha256.to_string()),
             true => Err(FetcherError::WrongChecksum),
         }
-    }
-}
-
-impl From<octocrab::Error> for FetcherError {
-    fn from(err: octocrab::Error) -> Self {
-        FetcherError::OctoError(err)
-    }
-}
-
-impl From<reqwest::Error> for FetcherError {
-    fn from(err: reqwest::Error) -> Self {
-        FetcherError::ReqwestError(err)
-    }
-}
-
-impl From<semver::Error> for FetcherError {
-    fn from(_: semver::Error) -> Self {
-        FetcherError::InvalidVersion
     }
 }
 

@@ -18,8 +18,9 @@ mod config;
 mod fetcher;
 mod game_data;
 mod players;
+mod errors;
 
-use tokio_postgres::{NoTls};
+use tokio_postgres::NoTls;
 
 #[derive(Deserialize)]
 struct VersionQuery {

@@ -1,95 +1,14 @@
-use std::fmt::{self, Display};
-
-use actix_web::body::BoxBody;
-use actix_web::http::StatusCode;
-use actix_web::{error, post, web, HttpResponse, Responder};
+use actix_web::{post, web, HttpResponse, Responder};
 use base64::prelude::*;
 use base64::Engine;
-use deadpool_postgres::tokio_postgres::types::{Type};
+use deadpool_postgres::tokio_postgres::types::Type;
 
 use rand_core::{OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::app_data::AppData;
-
-
-#[derive(Debug, Serialize)]
-struct RequestError {
-    err_code: String,
-    err_desc: String,
-}
-
-#[derive(Debug)]
-struct InternalError {
-    err_code: String,
-}
-
-#[derive(Debug)]
-enum RouteError {
-    DatabaseError(InternalError),
-    Internal(InternalError),
-    InvalidRequest(RequestError),
-}
-
-impl Display for RouteError {
-    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        unimplemented!()
-    }
-}
-
-impl From<std::io::Error> for RouteError {
-    fn from(value: std::io::Error) -> Self {
-        RouteError::Internal(InternalError {
-            err_code: value.to_string(),
-        })
-    }
-}
-
-impl From<rand_core::Error> for RouteError {
-    fn from(value: rand_core::Error) -> Self {
-        let std_err: std::io::Error = value.into();
-        std_err.into()
-    }
-}
-
-impl From<tokio_postgres::Error> for RouteError {
-    fn from(value: tokio_postgres::Error) -> Self {
-        RouteError::DatabaseError(InternalError {
-            err_code: value.to_string(),
-        })
-    }
-}
-
-impl error::ResponseError for RouteError {
-    fn status_code(&self) -> StatusCode {
-        match *self {
-            RouteError::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            RouteError::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            RouteError::InvalidRequest(_) => StatusCode::BAD_REQUEST,
-        }
-    }
-
-    fn error_response(&self) -> HttpResponse<BoxBody> {
-        match self {
-            RouteError::DatabaseError(err) => {
-                eprintln!(
-                    "database error: {}",
-                    err.err_code
-                );
-                HttpResponse::InternalServerError().finish()
-            },
-            RouteError::Internal(err) => {
-                eprintln!(
-                    "internal error: {}",
-                    err.err_code
-                );
-                HttpResponse::InternalServerError().finish()
-            },
-            RouteError::InvalidRequest(err) => HttpResponse::BadRequest().json(err),
-        }
-    }
-}
+use crate::errors::api::{ErrorCode, RequestError, RouteError};
 
 #[derive(Deserialize)]
 struct CreatePlayerParams {
@@ -111,20 +30,20 @@ async fn create_player(
     let nickname = params.nickname.trim();
 
     if nickname.is_empty() {
-        return Err(RouteError::InvalidRequest(RequestError {
-            err_code: "nickname_empty".to_string(),
-            err_desc: "Nickname cannot be empty".to_string(),
-        }));
+        return Err(RouteError::InvalidRequest(RequestError::new(
+            ErrorCode::NicknameEmpty,
+            "Nickname cannot be empty".to_string(),
+        )));
     }
 
     if nickname.len() > app_data.config.player_nickname_maxlength {
-        return Err(RouteError::InvalidRequest(RequestError {
-            err_code: "nickname_toolong".to_string(),
-            err_desc: format!(
+        return Err(RouteError::InvalidRequest(RequestError::new(
+            ErrorCode::NicknameToolong,
+            format!(
                 "Nickname size exceeds maximum size of {}",
                 app_data.config.player_nickname_maxlength
             ),
-        }));
+        )));
     }
 
     if !app_data.config.player_allow_non_ascii
@@ -132,10 +51,10 @@ async fn create_player(
             .chars()
             .all(|x| x.is_ascii_alphanumeric() || x == ' ' || x == '_')
     {
-        return Err(RouteError::InvalidRequest(RequestError {
-            err_code: "nickname_forbidden_characters".to_string(),
-            err_desc: format!("Nickname can only have ascii characters"),
-        }));
+        return Err(RouteError::InvalidRequest(RequestError::new(
+            ErrorCode::NicknameForbiddenCharacters,
+            "Nickname can only have ascii characters".to_string()
+        )));
     }
 
     let guid = Uuid::new_v4();
