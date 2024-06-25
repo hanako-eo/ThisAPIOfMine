@@ -4,6 +4,7 @@ use std::sync::Mutex;
 use actix_web::{get, middleware, web, App, HttpServer};
 use actix_web::{HttpResponse, Responder};
 use cached::{CachedAsync, TimedCache};
+use confy::ConfyError;
 use game_data::{Asset, GameRelease};
 use serde::Deserialize;
 
@@ -112,8 +113,14 @@ fn setup_pg_pool(api_config: &ApiConfig) -> deadpool_postgres::Pool {
 
 #[actix_web::main]
 async fn main() -> Result<(), std::io::Error> {
-    let Ok(config) = confy::load_path("tsom_api_config.toml") else {
-        panic!("failed to load config, please check tsom_api_config.toml");
+    let config = match confy::load_path("tsom_api_config.toml") {
+        Ok(config) => config,
+        Err(ConfyError::BadTomlData(err)) =>
+            panic!("an error occured on the parsing of the file tsom_api_config.toml:\n{}", err.message()),
+        Err(ConfyError::GeneralLoadError(err)) =>
+            panic!("an error occured on the loading of the file tsom_api_config.toml:\n{}", err),
+        Err(_) =>
+            panic!("wrong data in the file, failed to load config, please check tsom_api_config.toml")
     };
     let fetcher = Fetcher::from_config(&config).unwrap();
 

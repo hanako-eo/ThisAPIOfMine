@@ -77,7 +77,7 @@ async fn create_player(
     let mut key = [0u8; 32];
     OsRng.try_fill_bytes(&mut key)?;
 
-    let token = BASE64_STANDARD.encode(&key);
+    let token = BASE64_STANDARD.encode(key);
 
     let transaction = pg_client.transaction().await?;
     let result = transaction
