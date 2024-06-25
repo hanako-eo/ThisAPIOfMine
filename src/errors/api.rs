@@ -1,7 +1,7 @@
-use core::fmt;
 use actix_web::body::BoxBody;
 use actix_web::http::StatusCode;
 use actix_web::{HttpResponse, ResponseError};
+use std::fmt;
 use serde::{Serialize, Serializer};
 use strum::AsRefStr;
 
@@ -10,7 +10,7 @@ use crate::error_from;
 #[derive(Debug)]
 pub enum ErrorCause {
     Database,
-    Internal
+    Internal,
 }
 
 #[derive(Debug, AsRefStr)]
@@ -19,9 +19,9 @@ pub enum ErrorCode {
     NicknameEmpty,
     NicknameToolong,
     NicknameForbiddenCharacters,
-    
+
     #[strum(to_string = "{0}")]
-    Extrenal(String)
+    Extrenal(String),
 }
 
 #[derive(Debug, Serialize)]
@@ -44,10 +44,7 @@ impl Serialize for ErrorCode {
 
 impl RequestError {
     pub fn new(err_code: ErrorCode, err_desc: String) -> Self {
-        Self {
-            err_code,
-            err_desc
-        }
+        Self { err_code, err_desc }
     }
 }
 
@@ -84,7 +81,7 @@ impl ResponseError for RouteError {
             RouteError::ServerError(cause, err_code) => {
                 eprintln!("{cause:?} error: {}", err_code.as_ref());
                 HttpResponse::InternalServerError().finish()
-            },
+            }
             RouteError::InvalidRequest(err) => HttpResponse::BadRequest().json(err),
         }
     }

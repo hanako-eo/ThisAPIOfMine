@@ -16,10 +16,10 @@ use crate::players::create_player;
 
 mod app_data;
 mod config;
+mod errors;
 mod fetcher;
 mod game_data;
 mod players;
-mod errors;
 
 use tokio_postgres::NoTls;
 
@@ -115,12 +115,17 @@ fn setup_pg_pool(api_config: &ApiConfig) -> deadpool_postgres::Pool {
 async fn main() -> Result<(), std::io::Error> {
     let config = match confy::load_path("tsom_api_config.toml") {
         Ok(config) => config,
-        Err(ConfyError::BadTomlData(err)) =>
-            panic!("an error occured on the parsing of the file tsom_api_config.toml:\n{}", err.message()),
-        Err(ConfyError::GeneralLoadError(err)) =>
-            panic!("an error occured on the loading of the file tsom_api_config.toml:\n{}", err),
-        Err(_) =>
-            panic!("wrong data in the file, failed to load config, please check tsom_api_config.toml")
+        Err(ConfyError::BadTomlData(err)) => panic!(
+            "an error occured on the parsing of the file tsom_api_config.toml:\n{}",
+            err.message()
+        ),
+        Err(ConfyError::GeneralLoadError(err)) => panic!(
+            "an error occured on the loading of the file tsom_api_config.toml:\n{}",
+            err
+        ),
+        Err(_) => panic!(
+            "wrong data in the file, failed to load config, please check tsom_api_config.toml"
+        ),
     };
     let fetcher = Fetcher::from_config(&config).unwrap();
 

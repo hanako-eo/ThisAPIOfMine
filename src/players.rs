@@ -53,7 +53,7 @@ async fn create_player(
     {
         return Err(RouteError::InvalidRequest(RequestError::new(
             ErrorCode::NicknameForbiddenCharacters,
-            "Nickname can only have ascii characters".to_string()
+            "Nickname can only have ascii characters".to_string(),
         )));
     }
 
