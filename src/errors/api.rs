@@ -1,8 +1,8 @@
 use actix_web::body::BoxBody;
 use actix_web::http::StatusCode;
 use actix_web::{HttpResponse, ResponseError};
-use std::fmt;
 use serde::{Serialize, Serializer};
+use std::fmt;
 use strum::AsRefStr;
 
 use crate::error_from;
@@ -16,6 +16,7 @@ pub enum ErrorCause {
 #[derive(Debug, AsRefStr)]
 #[strum(serialize_all = "snake_case")]
 pub enum ErrorCode {
+    AuthenticationInvalidToken,
     NicknameEmpty,
     NicknameToolong,
     NicknameForbiddenCharacters,

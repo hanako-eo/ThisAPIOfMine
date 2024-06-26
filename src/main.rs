@@ -76,6 +76,7 @@ async fn main() -> Result<(), std::io::Error> {
             .app_data(pg_pool.clone())
             .service(game_version)
             .service(player_create)
+            .service(player_authenticate)
     })
     .bind(bind_address)?
     .run()

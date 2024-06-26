@@ -3,7 +3,7 @@ use std::sync::Mutex;
 
 use crate::config::ApiConfig;
 use crate::fetcher::Fetcher;
-use crate::CachedReleased;
+use crate::version::CachedReleased;
 
 pub struct AppData {
     pub cache: Mutex<TimedCache<&'static str, CachedReleased>>,

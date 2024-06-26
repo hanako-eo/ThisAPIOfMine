@@ -21,8 +21,8 @@ struct CreatePlayerResponse {
     token: String,
 }
 
-#[post("/players")]
-async fn create_player(
+#[post("/v1/players")]
+async fn player_create(
     app_data: web::Data<AppData>,
     pg_pool: web::Data<deadpool_postgres::Pool>,
     params: web::Json<CreatePlayerParams>,
@@ -96,5 +96,66 @@ async fn create_player(
     Ok(HttpResponse::Ok().json(CreatePlayerResponse {
         guid: guid.to_string(),
         token: token.to_string(),
+    }))
+}
+
+#[derive(Deserialize)]
+struct AuthenticationParams {
+    token: String,
+}
+
+#[derive(Serialize)]
+struct AuthenticationResponse {
+    guid: String,
+    nickname: String,
+}
+
+#[post("/v1/player/authenticate")]
+async fn player_authenticate(
+    pg_pool: web::Data<deadpool_postgres::Pool>,
+    params: web::Json<AuthenticationParams>,
+) -> Result<impl Responder, RouteError> {
+    let token = &params.token;
+
+    if token.is_empty() || token.len() > 64 {
+        return Err(RouteError::InvalidRequest(RequestError::new(
+            ErrorCode::AuthenticationInvalidToken,
+            "Invalid token".to_string(),
+        )));
+    }
+
+    let pg_client = pg_pool.get().await.unwrap();
+
+    let find_token_statement = pg_client
+        .prepare_typed_cached(
+            "SELECT player_id FROM player_tokens WHERE token = $1",
+            &[Type::VARCHAR],
+        )
+        .await?;
+
+    let find_player_info = pg_client
+        .prepare_typed_cached(
+            "SELECT guid, nickname FROM players WHERE id = $1",
+            &[Type::INT4],
+        )
+        .await?;
+
+    let token_result = pg_client.query(&find_token_statement, &[&token]).await?;
+    if token_result.is_empty() {
+        return Err(RouteError::InvalidRequest(RequestError::new(
+            ErrorCode::AuthenticationInvalidToken,
+            "Invalid token".to_string(),
+        )));
+    }
+
+    let player_id: i32 = token_result[0].get(0);
+    let player_result = pg_client.query(&find_player_info, &[&player_id]).await?;
+
+    let guid: Uuid = player_result[0].get(0);
+    let nickname: String = player_result[0].get(1);
+
+    Ok(HttpResponse::Ok().json(AuthenticationResponse {
+        guid: guid.to_string(),
+        nickname,
     }))
 }
