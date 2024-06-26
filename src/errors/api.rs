@@ -21,7 +21,7 @@ pub enum ErrorCode {
     NicknameForbiddenCharacters,
 
     #[strum(to_string = "{0}")]
-    Extrenal(String),
+    External(String),
 }
 
 #[derive(Debug, Serialize)]
@@ -58,13 +58,13 @@ error_from! { transform_io rand_core::Error, RouteError }
 error_from! { transform std::io::Error, RouteError, |value| {
     RouteError::ServerError(
         ErrorCause::Internal,
-        ErrorCode::Extrenal(value.to_string())
+        ErrorCode::External(value.to_string())
     )
 } }
 error_from! { transform tokio_postgres::Error, RouteError, |value| {
     RouteError::ServerError(
         ErrorCause::Database,
-        ErrorCode::Extrenal(value.to_string())
+        ErrorCode::External(value.to_string())
     )
 } }
 
