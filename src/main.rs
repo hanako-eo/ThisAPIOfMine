@@ -121,7 +121,7 @@ async fn main() -> Result<(), std::io::Error> {
         ),
         Err(ConfyError::GeneralLoadError(err)) => panic!(
             "an error occured on the loading of the file tsom_api_config.toml:\n{}",
-            err
+            err.kind()
         ),
         Err(_) => panic!(
             "wrong data in the file, failed to load config, please check tsom_api_config.toml"
