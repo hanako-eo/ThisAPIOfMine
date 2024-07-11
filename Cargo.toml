@@ -9,9 +9,11 @@ edition = "2021"
 actix-governor = "0.5"
 actix-web = "4.4"
 base64 = "0.22"
-cached = { version = "0.51", features = ["async"] }
+cached = { version = "0.52", features = ["async"] }
+chacha20poly1305 = "0.10"
 confy = "0.6"
 deadpool-postgres = "0.14"
+deku = "0.17"
 env_logger = "0.11"
 futures = "0.3"
 octocrab = "0.38"
@@ -20,6 +22,7 @@ reqwest = { version = "0.12", features = ["charset", "http2", "macos-system-conf
 secure-string = { version = "0.3", features = ["serde"] }
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
+serde_with = { version = "3.8", features = ["base64", "time_0_3"] }
 strum = { version = "0.26", features = ["derive"] }
 tokio = "1.37"
 tokio-postgres = { version = "0.7", features = ["with-uuid-1"] }

@@ -4,7 +4,7 @@ repo_owner = "DigitalPulseSoftware"
 game_repository = "ThisSpaceOfMine"
 updater_repository = "ThisUpdaterOfMine"
 updater_filename = "this_updater_of_mine"
-cache_lifespan = 300 # duration from second
+cache_lifespan = 300 # duration in seconds
 # github_pat = "***"
 db_host = "localhost"
 db_user = "tsom"
@@ -12,3 +12,12 @@ db_password = ""
 db_database = "tsom"
 player_nickname_maxlength = 16
 player_allow_non_ascii = false
+
+connection_token_key = "123456"
+
+game_api_url = "http://localhost:14770"
+game_api_token = "123456"
+game_api_token_duration = 300 # duration in seconds
+
+game_server_address = "::1"
+game_server_port = 29536

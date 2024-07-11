@@ -2,6 +2,7 @@ use actix_governor::{Governor, GovernorConfig, GovernorConfigBuilder};
 use actix_web::{middleware, web, App, HttpServer};
 use cached::TimedCache;
 use confy::ConfyError;
+use game_connection::player_test;
 use std::sync::Mutex;
 
 use crate::app_data::AppData;
@@ -14,6 +15,8 @@ mod app_data;
 mod config;
 mod errors;
 mod fetcher;
+mod game_connection;
+mod game_connection_token;
 mod game_data;
 mod players;
 mod version;
@@ -65,7 +68,7 @@ async fn main() -> Result<(), std::io::Error> {
     let bind_address = format!("{}:{}", config.listen_address, config.listen_port);
 
     let data_config = web::Data::new(AppData {
-        cache: Mutex::new(TimedCache::with_lifespan(config.cache_lifespan)), // 5min
+        cache: Mutex::new(TimedCache::with_lifespan(config.cache_lifespan.as_secs())), // 5min
         config,
         fetcher,
     });
@@ -86,6 +89,7 @@ async fn main() -> Result<(), std::io::Error> {
             .app_data(pg_pool.clone())
             .service(game_version)
             .service(player_authenticate)
+            .service(player_test)
             .service(
                 web::scope("")
                     .wrap(Governor::new(&player_create_governor_conf))

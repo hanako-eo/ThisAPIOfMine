@@ -17,7 +17,7 @@ struct CreatePlayerParams {
 
 #[derive(Serialize)]
 struct CreatePlayerResponse {
-    guid: String,
+    uuid: String,
     token: String,
 }
 
@@ -57,13 +57,13 @@ async fn player_create(
         )));
     }
 
-    let guid = Uuid::new_v4();
+    let uuid = Uuid::new_v4();
 
     let mut pg_client = pg_pool.get().await.unwrap();
 
     let create_player_statement = pg_client
         .prepare_typed_cached(
-            "INSERT INTO players(guid, creation_time, nickname) VALUES($1, NOW(), $2) RETURNING id",
+            "INSERT INTO players(uuid, creation_time, nickname) VALUES($1, NOW(), $2) RETURNING id",
             &[Type::UUID, Type::VARCHAR],
         )
         .await?;
@@ -81,7 +81,7 @@ async fn player_create(
 
     let transaction = pg_client.transaction().await?;
     let result = transaction
-        .query(&create_player_statement, &[&guid, &nickname])
+        .query(&create_player_statement, &[&uuid, &nickname])
         .await?;
     let player_id: i32 = result[0].get(0);
     transaction
@@ -90,11 +90,11 @@ async fn player_create(
     transaction.commit().await?;
 
     pg_client
-        .query(&create_player_statement, &[&guid, &nickname])
+        .query(&create_player_statement, &[&uuid, &nickname])
         .await?;
 
     Ok(HttpResponse::Ok().json(CreatePlayerResponse {
-        guid: guid.to_string(),
+        uuid: uuid.to_string(),
         token: token.to_string(),
     }))
 }
@@ -106,7 +106,7 @@ struct AuthenticationParams {
 
 #[derive(Serialize)]
 struct AuthenticationResponse {
-    guid: String,
+    uuid: String,
     nickname: String,
 }
 
@@ -135,7 +135,7 @@ async fn player_authenticate(
 
     let find_player_info = pg_client
         .prepare_typed_cached(
-            "SELECT guid, nickname FROM players WHERE id = $1",
+            "SELECT uuid, nickname FROM players WHERE id = $1",
             &[Type::INT4],
         )
         .await?;
@@ -151,11 +151,11 @@ async fn player_authenticate(
     let player_id: i32 = token_result[0].get(0);
     let player_result = pg_client.query(&find_player_info, &[&player_id]).await?;
 
-    let guid: Uuid = player_result[0].get(0);
+    let uuid: Uuid = player_result[0].get(0);
     let nickname: String = player_result[0].get(1);
 
     Ok(HttpResponse::Ok().json(AuthenticationResponse {
-        guid: guid.to_string(),
+        uuid: uuid.to_string(),
         nickname,
     }))
 }

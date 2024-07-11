@@ -1,6 +1,12 @@
+use std::time::Duration;
+
 use secure_string::SecureString;
 use serde::{Deserialize, Serialize};
+use serde_with::base64::Base64;
+use serde_with::serde_as;
+use serde_with::DurationSeconds;
 
+#[serde_as]
 #[derive(Serialize, Deserialize)]
 pub struct ApiConfig {
     pub listen_address: String,
@@ -9,7 +15,8 @@ pub struct ApiConfig {
     pub game_repository: String,
     pub updater_repository: String,
     pub updater_filename: String,
-    pub cache_lifespan: u64,
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub cache_lifespan: Duration,
     pub github_pat: Option<SecureString>,
     pub db_host: String,
     pub db_user: String,
@@ -17,6 +24,14 @@ pub struct ApiConfig {
     pub db_database: String,
     pub player_nickname_maxlength: usize,
     pub player_allow_non_ascii: bool,
+    pub game_api_token: String,
+    pub game_api_url: String,
+    pub game_server_address: String,
+    pub game_server_port: u16,
+    #[serde_as(as = "DurationSeconds<u64>")]
+    pub game_api_token_duration: Duration,
+    #[serde_as(as = "Base64")]
+    pub connection_token_key: [u8; 32],
 }
 
 impl Default for ApiConfig {
@@ -28,7 +43,7 @@ impl Default for ApiConfig {
             game_repository: "ThisSpaceOfMine".to_string(),
             updater_filename: "this_updater_of_mine".to_string(),
             updater_repository: "ThisUpdaterOfMine".to_string(),
-            cache_lifespan: 5 * 60,
+            cache_lifespan: Duration::from_secs(5 * 60),
             github_pat: None,
             db_host: "localhost".to_string(),
             db_user: "api".to_string(),
@@ -36,6 +51,15 @@ impl Default for ApiConfig {
             db_database: "tsom_db".to_string(),
             player_nickname_maxlength: 16,
             player_allow_non_ascii: false,
+            game_api_token: "".into(),
+            game_api_url: "http://localhost".to_string(),
+            game_server_address: "localhost".to_string(),
+            game_server_port: 29536,
+            game_api_token_duration: Duration::from_secs(5 * 60),
+            connection_token_key: [
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+                23, 24, 25, 26, 27, 28, 29, 30, 31,
+            ],
         }
     }
 }
