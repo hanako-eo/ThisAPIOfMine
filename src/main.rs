@@ -1,3 +1,4 @@
+use actix_governor::{Governor, GovernorConfig, GovernorConfigBuilder};
 use actix_web::{middleware, web, App, HttpServer};
 use cached::TimedCache;
 use confy::ConfyError;
@@ -69,14 +70,27 @@ async fn main() -> Result<(), std::io::Error> {
         fetcher,
     });
 
+    let governor_conf = GovernorConfig::default();
+
+    let player_create_governor_conf = GovernorConfigBuilder::default()
+        .per_second(10)
+        .burst_size(1)
+        .finish()
+        .unwrap();
+
     HttpServer::new(move || {
         App::new()
             .wrap(middleware::Logger::default())
+            .wrap(Governor::new(&governor_conf))
             .app_data(data_config.clone())
             .app_data(pg_pool.clone())
             .service(game_version)
-            .service(player_create)
             .service(player_authenticate)
+            .service(
+                web::scope("")
+                    .wrap(Governor::new(&player_create_governor_conf))
+                    .service(player_create),
+            )
     })
     .bind(bind_address)?
     .run()
