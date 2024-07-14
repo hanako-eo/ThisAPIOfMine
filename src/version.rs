@@ -20,7 +20,7 @@ pub(crate) enum CachedReleased {
 }
 
 #[get("/game_version")]
-async fn game_version(
+async fn route_game_version(
     app_data: web::Data<AppData>,
     ver_query: web::Query<VersionQuery>,
 ) -> impl Responder {

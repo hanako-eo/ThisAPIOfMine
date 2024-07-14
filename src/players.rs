@@ -10,6 +10,35 @@ use uuid::Uuid;
 use crate::app_data::AppData;
 use crate::errors::api::{ErrorCode, RequestError, RouteError};
 
+pub async fn validate_player_token(
+    pg_client: &deadpool_postgres::Client,
+    token: &str,
+) -> Result<i32, RouteError> {
+    if token.is_empty() || token.len() > 64 {
+        return Err(RouteError::InvalidRequest(RequestError::new(
+            ErrorCode::AuthenticationInvalidToken,
+            "Invalid token".to_string(),
+        )));
+    }
+
+    let find_token_statement = pg_client
+        .prepare_typed_cached(
+            "SELECT player_id FROM player_tokens WHERE token = $1",
+            &[Type::VARCHAR],
+        )
+        .await?;
+
+    let token_result = pg_client.query(&find_token_statement, &[&token]).await?;
+    if token_result.is_empty() {
+        return Err(RouteError::InvalidRequest(RequestError::new(
+            ErrorCode::AuthenticationInvalidToken,
+            "Invalid token".to_string(),
+        )));
+    }
+
+    Ok(token_result[0].get(0))
+}
+
 #[derive(Deserialize)]
 struct CreatePlayerParams {
     nickname: String,
@@ -22,7 +51,7 @@ struct CreatePlayerResponse {
 }
 
 #[post("/v1/players")]
-async fn player_create(
+async fn route_player_create(
     app_data: web::Data<AppData>,
     pg_pool: web::Data<deadpool_postgres::Pool>,
     params: web::Json<CreatePlayerParams>,
@@ -110,28 +139,13 @@ struct AuthenticationResponse {
     nickname: String,
 }
 
-#[post("/v1/player/authenticate")]
-async fn player_authenticate(
+#[post("/v1/player/auth")]
+async fn route_player_auth(
     pg_pool: web::Data<deadpool_postgres::Pool>,
     params: web::Json<AuthenticationParams>,
 ) -> Result<impl Responder, RouteError> {
-    let token = &params.token;
-
-    if token.is_empty() || token.len() > 64 {
-        return Err(RouteError::InvalidRequest(RequestError::new(
-            ErrorCode::AuthenticationInvalidToken,
-            "Invalid token".to_string(),
-        )));
-    }
-
     let pg_client = pg_pool.get().await?;
-
-    let find_token_statement = pg_client
-        .prepare_typed_cached(
-            "SELECT player_id FROM player_tokens WHERE token = $1",
-            &[Type::VARCHAR],
-        )
-        .await?;
+    let player_id = validate_player_token(&pg_client, &params.token).await?;
 
     let find_player_info = pg_client
         .prepare_typed_cached(
@@ -140,16 +154,34 @@ async fn player_authenticate(
         )
         .await?;
 
-    let token_result = pg_client.query(&find_token_statement, &[&token]).await?;
-    if token_result.is_empty() {
+    let player_result = pg_client.query(&find_player_info, &[&player_id]).await?;
+    if player_result.is_empty() {
         return Err(RouteError::InvalidRequest(RequestError::new(
             ErrorCode::AuthenticationInvalidToken,
             "Invalid token".to_string(),
         )));
     }
 
-    let player_id: i32 = token_result[0].get(0);
-    let player_result = pg_client.query(&find_player_info, &[&player_id]).await?;
+    // Update last connection time in a separate task as its result won't affect the route
+    tokio::spawn(async move {
+        match pg_client
+            .prepare_typed_cached(
+                "UPDATE players SET last_connection_time = NOW() WHERE id = $1",
+                &[Type::INT4],
+            )
+            .await
+        {
+            Ok(statement) => {
+                let res = pg_client.query(&statement, &[&player_id]).await;
+                if let Err(err) = res {
+                    eprintln!("failed to update player {player_id} connection time: {err}");
+                }
+            }
+            Err(err) => {
+                eprintln!("failed to update player {player_id} connection time (failed to prepare query): {err}");
+            }
+        }
+    });
 
     let uuid: Uuid = player_result[0].get(0);
     let nickname: String = player_result[0].get(1);

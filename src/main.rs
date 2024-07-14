@@ -2,14 +2,15 @@ use actix_governor::{Governor, GovernorConfig, GovernorConfigBuilder};
 use actix_web::{middleware, web, App, HttpServer};
 use cached::TimedCache;
 use confy::ConfyError;
-use game_connection::player_test;
+use game_connection::route_game_connect;
+use players::route_player_auth;
 use std::sync::Mutex;
 
 use crate::app_data::AppData;
 use crate::config::ApiConfig;
 use crate::fetcher::Fetcher;
-use crate::players::{player_authenticate, player_create};
-use crate::version::game_version;
+use crate::players::route_player_create;
+use crate::version::route_game_version;
 
 mod app_data;
 mod config;
@@ -62,7 +63,7 @@ async fn main() -> Result<(), std::io::Error> {
     let test_client = pg_pool.get().await.expect("failed to connect to database");
     drop(test_client);
 
-    std::env::set_var("RUST_LOG", "debug,actix_web=debug");
+    std::env::set_var("RUST_LOG", "info,actix_web=info");
     env_logger::init();
 
     let bind_address = format!("{}:{}", config.listen_address, config.listen_port);
@@ -87,13 +88,13 @@ async fn main() -> Result<(), std::io::Error> {
             .wrap(Governor::new(&governor_conf))
             .app_data(data_config.clone())
             .app_data(pg_pool.clone())
-            .service(game_version)
-            .service(player_authenticate)
-            .service(player_test)
+            .service(route_game_version)
+            .service(route_player_auth)
+            .service(route_game_connect)
             .service(
                 web::scope("")
                     .wrap(Governor::new(&player_create_governor_conf))
-                    .service(player_create),
+                    .service(route_player_create),
             )
     })
     .bind(bind_address)?
