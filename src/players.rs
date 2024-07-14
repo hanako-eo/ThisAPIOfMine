@@ -118,10 +118,6 @@ async fn route_player_create(
         .await?;
     transaction.commit().await?;
 
-    pg_client
-        .query(&create_player_statement, &[&uuid, &nickname])
-        .await?;
-
     Ok(HttpResponse::Ok().json(CreatePlayerResponse {
         uuid: uuid.to_string(),
         token: token.to_string(),
