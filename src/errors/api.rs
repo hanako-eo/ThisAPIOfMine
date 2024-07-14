@@ -69,6 +69,13 @@ error_from! { transform tokio_postgres::Error, RouteError, |value| {
     )
 } }
 
+error_from! { transform deadpool_postgres::PoolError, RouteError, |value| {
+    RouteError::ServerError(
+        ErrorCause::Database,
+        ErrorCode::External(value.to_string())
+    )
+} }
+
 impl ResponseError for RouteError {
     fn status_code(&self) -> StatusCode {
         match self {

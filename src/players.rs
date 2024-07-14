@@ -59,7 +59,7 @@ async fn player_create(
 
     let uuid = Uuid::new_v4();
 
-    let mut pg_client = pg_pool.get().await.unwrap();
+    let mut pg_client = pg_pool.get().await?;
 
     let create_player_statement = pg_client
         .prepare_typed_cached(
@@ -124,7 +124,7 @@ async fn player_authenticate(
         )));
     }
 
-    let pg_client = pg_pool.get().await.unwrap();
+    let pg_client = pg_pool.get().await?;
 
     let find_token_statement = pg_client
         .prepare_typed_cached(
