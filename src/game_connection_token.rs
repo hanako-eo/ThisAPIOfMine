@@ -76,8 +76,8 @@ impl GameConnectionToken {
         let additional_data = GameConnectionTokenAdditionalData {
             token_version,
             expire_timestamp,
-            client_to_server_key: encryption_keys.client_to_server.clone(),
-            server_to_client_key: encryption_keys.server_to_client.clone(),
+            client_to_server_key: encryption_keys.client_to_server,
+            server_to_client_key: encryption_keys.server_to_client,
         };
 
         let additional_data_bytes = additional_data.to_bytes().unwrap();
