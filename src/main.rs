@@ -4,7 +4,7 @@ use cached::TimedCache;
 use confy::ConfyError;
 use game_connection::route_game_connect;
 use players::route_player_auth;
-use std::sync::Mutex;
+use tokio::sync::Mutex;
 
 use crate::app_data::AppData;
 use crate::config::ApiConfig;

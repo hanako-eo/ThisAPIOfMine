@@ -1,5 +1,5 @@
 use cached::TimedCache;
-use std::sync::Mutex;
+use tokio::sync::Mutex;
 
 use crate::config::ApiConfig;
 use crate::fetcher::Fetcher;

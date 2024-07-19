@@ -29,7 +29,7 @@ async fn route_game_version(
         config,
         fetcher,
     } = app_data.as_ref();
-    let mut cache = cache.lock().unwrap();
+    let mut cache = cache.lock().await;
 
     // TODO: remove .cloned
     let Ok(CachedReleased::Updater(updater_release)) = cache
