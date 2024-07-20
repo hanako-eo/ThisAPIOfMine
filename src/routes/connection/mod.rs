@@ -39,6 +39,7 @@ async fn game_connect(
 
     let player_result = pg_client.query(&find_player_info, &[&player_id]).await?;
     if player_result.is_empty() {
+        // TODO: improve the delivered error
         return Err(RouteError::InvalidRequest(RequestError::new(
             ErrorCode::AuthenticationInvalidToken,
             "Invalid token".to_string(),
@@ -63,6 +64,7 @@ async fn game_connect(
         server_address,
         private_token,
     ) else {
+        // TODO: improve the delivered error
         return Err(RouteError::ServerError(
             ErrorCause::Internal,
             ErrorCode::TokenGenerationFailed,
