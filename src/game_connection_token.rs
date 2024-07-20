@@ -65,26 +65,26 @@ impl GameConnectionToken {
         duration: Duration,
         server_address: GameServerAddress,
         private_token: GameConnectionTokenPrivate,
-    ) -> Self {
-        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+    ) -> Result<Self> {
+        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?;
 
         let encryption_keys = GameEncryptionKeys::generate();
 
         let token_version = 1u32;
-        let expire_timestamp = (timestamp + duration).as_secs();
+        let expire_timestamp = timestamp + duration;
 
         let additional_data = GameConnectionTokenAdditionalData {
             token_version,
-            expire_timestamp,
+            expire_timestamp: expire_timestamp.as_secs(),
             client_to_server_key: encryption_keys.client_to_server,
             server_to_client_key: encryption_keys.server_to_client,
         };
 
-        let additional_data_bytes = additional_data.to_bytes().unwrap();
+        let additional_data_bytes = additional_data.to_bytes()?;
 
         let nonce = XChaCha20Poly1305::generate_nonce(&mut OsRng);
 
-        let mut private_token_bytes = private_token.to_bytes().unwrap();
+        let mut private_token_bytes = private_token.to_bytes()?;
         private_token_bytes.resize(private_token_bytes.len() + XCHACHA20POLY1305_IETF_ABYTES, 0);
 
         let mut cipher = XChaCha20Poly1305::new(&token_key);
@@ -96,15 +96,15 @@ impl GameConnectionToken {
             )
             .unwrap();
 
-        Self {
+        Ok(Self {
             token_version,
             token_nonce: nonce,
             creation_timestamp: timestamp.as_secs(),
-            expire_timestamp: (timestamp + duration).as_secs(),
+            expire_timestamp: expire_timestamp.as_secs(),
             encryption_keys,
             game_server: server_address,
             private_token_data: private_token_bytes,
-        }
+        })
     }
 }
 

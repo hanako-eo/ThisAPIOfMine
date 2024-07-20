@@ -5,8 +5,6 @@ use serde::{Serialize, Serializer};
 use std::fmt;
 use strum::AsRefStr;
 
-use crate::error_from;
-
 #[derive(Debug)]
 pub enum ErrorCause {
     Database,
@@ -20,6 +18,8 @@ pub enum ErrorCode {
     NicknameEmpty,
     NicknameToolong,
     NicknameForbiddenCharacters,
+
+    TokenGenerationFailed,
 
     #[strum(to_string = "{0}")]
     External(String),
@@ -55,6 +55,44 @@ impl fmt::Display for RouteError {
     }
 }
 
+impl ResponseError for RouteError {
+    fn status_code(&self) -> StatusCode {
+        match self {
+            RouteError::ServerError(..) => StatusCode::INTERNAL_SERVER_ERROR,
+            RouteError::InvalidRequest(_) => StatusCode::BAD_REQUEST,
+        }
+    }
+
+    fn error_response(&self) -> HttpResponse<BoxBody> {
+        match self {
+            RouteError::ServerError(cause, err_code) => {
+                eprintln!("{cause:?} error: {}", err_code.as_ref());
+                HttpResponse::InternalServerError().finish()
+            }
+            RouteError::InvalidRequest(err) => HttpResponse::BadRequest().json(err),
+        }
+    }
+}
+
+
+// to delete '$into_type:path' you need to use proc macros and further manipulation of the AST
+macro_rules! error_from {
+    (transform $from:path, $into_type:path, |$err_name:ident| $blk:block) => {
+        impl From<$from> for $into_type {
+            fn from($err_name: $from) -> Self {
+                $blk
+            }
+        }
+    };
+    (transform_io $from:path, $into_type:path) => {
+        impl From<$from> for $into_type {
+            fn from(err: $from) -> Self {
+                std::io::Error::from(err).into()
+            }
+        }
+    };
+}
+
 error_from! { transform_io rand_core::Error, RouteError }
 error_from! { transform std::io::Error, RouteError, |value| {
     RouteError::ServerError(
@@ -75,22 +113,3 @@ error_from! { transform deadpool_postgres::PoolError, RouteError, |value| {
         ErrorCode::External(value.to_string())
     )
 } }
-
-impl ResponseError for RouteError {
-    fn status_code(&self) -> StatusCode {
-        match self {
-            RouteError::ServerError(..) => StatusCode::INTERNAL_SERVER_ERROR,
-            RouteError::InvalidRequest(_) => StatusCode::BAD_REQUEST,
-        }
-    }
-
-    fn error_response(&self) -> HttpResponse<BoxBody> {
-        match self {
-            RouteError::ServerError(cause, err_code) => {
-                eprintln!("{cause:?} error: {}", err_code.as_ref());
-                HttpResponse::InternalServerError().finish()
-            }
-            RouteError::InvalidRequest(err) => HttpResponse::BadRequest().json(err),
-        }
-    }
-}

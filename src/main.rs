@@ -19,6 +19,7 @@ mod fetcher;
 mod game_connection;
 mod game_connection_token;
 mod game_data;
+mod metaprog;
 mod players;
 mod version;
 

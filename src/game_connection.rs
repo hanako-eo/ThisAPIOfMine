@@ -4,12 +4,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    app_data::AppData,
-    errors::api::{ErrorCode, RequestError, RouteError},
-    game_connection_token::{
+    config::ApiConfig, errors::api::{ErrorCause, ErrorCode, RequestError, RouteError}, game_connection_token::{
         GameConnectionToken, GameConnectionTokenPrivate, GamePlayerData, GameServerAddress,
-    },
-    players::validate_player_token,
+    }, players::validate_player_token
 };
 
 #[derive(Deserialize)]
@@ -62,12 +59,14 @@ async fn route_game_connect(
         config.game_api_token.clone(),
         player_data,
     );
-    let token = GameConnectionToken::generate(
+    let Ok(token) = GameConnectionToken::generate(
         config.connection_token_key.into(),
         config.game_api_token_duration,
         server_address,
         private_token,
-    );
+    ) else {
+        return Err(RouteError::ServerError(ErrorCause::Internal, ErrorCode::TokenGenerationFailed));
+    };
 
     Ok(HttpResponse::Ok().json(token))
 }
