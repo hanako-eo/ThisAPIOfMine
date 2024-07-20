@@ -6,6 +6,7 @@ use cached::CachedAsync;
 use serde::Deserialize;
 
 use crate::app_data::AppData;
+use crate::config::ApiConfig;
 use crate::game_data::{Asset, GameRelease, GameVersion};
 
 #[derive(Deserialize)]
@@ -22,11 +23,11 @@ pub(crate) enum CachedReleased {
 #[get("/game_version")]
 async fn route_game_version(
     app_data: web::Data<AppData>,
+    config: web::Data<ApiConfig>,
     ver_query: web::Query<VersionQuery>,
 ) -> impl Responder {
     let AppData {
         cache,
-        config,
         fetcher,
     } = app_data.as_ref();
     let mut cache = cache.lock().await;
@@ -42,6 +43,7 @@ async fn route_game_version(
         .await
         .cloned()
     else {
+        // TODO: improve the delivery of error (with crate::errors::api)
         return HttpResponse::InternalServerError().finish();
     };
 
@@ -56,6 +58,7 @@ async fn route_game_version(
         .await
         .cloned()
     else {
+        // TODO: improve the delivery of error (with crate::errors::api)
         return HttpResponse::InternalServerError().finish();
     };
 

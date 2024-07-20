@@ -7,7 +7,7 @@ use rand_core::{OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::app_data::AppData;
+use crate::config::ApiConfig;
 use crate::errors::api::{ErrorCode, RequestError, RouteError};
 
 pub async fn validate_player_token(
@@ -52,8 +52,8 @@ struct CreatePlayerResponse {
 
 #[post("/v1/players")]
 async fn route_player_create(
-    app_data: web::Data<AppData>,
     pg_pool: web::Data<deadpool_postgres::Pool>,
+    config: web::Data<ApiConfig>,
     params: web::Json<CreatePlayerParams>,
 ) -> Result<impl Responder, RouteError> {
     let nickname = params.nickname.trim();
@@ -65,17 +65,17 @@ async fn route_player_create(
         )));
     }
 
-    if nickname.len() > app_data.config.player_nickname_maxlength {
+    if nickname.len() > config.player_nickname_maxlength {
         return Err(RouteError::InvalidRequest(RequestError::new(
             ErrorCode::NicknameToolong,
             format!(
                 "Nickname size exceeds maximum size of {}",
-                app_data.config.player_nickname_maxlength
+                config.player_nickname_maxlength
             ),
         )));
     }
 
-    if !app_data.config.player_allow_non_ascii
+    if !config.player_allow_non_ascii
         && !nickname
             .chars()
             .all(|x| x.is_ascii_alphanumeric() || x == ' ' || x == '_')

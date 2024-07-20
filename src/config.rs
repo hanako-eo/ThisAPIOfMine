@@ -51,15 +51,12 @@ impl Default for ApiConfig {
             db_database: "tsom_db".to_string(),
             player_nickname_maxlength: 16,
             player_allow_non_ascii: false,
-            game_api_token: "".into(),
+            game_api_token: "".to_string(),
             game_api_url: "http://localhost".to_string(),
             game_server_address: "localhost".to_string(),
             game_server_port: 29536,
             game_api_token_duration: Duration::from_secs(5 * 60),
-            connection_token_key: [
-                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
-                23, 24, 25, 26, 27, 28, 29, 30, 31,
-            ],
+            connection_token_key: std::array::from_fn(|i| i as u8), // <=> [0, 1, .., 31]
         }
     }
 }

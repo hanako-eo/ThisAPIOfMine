@@ -25,7 +25,7 @@ struct GameConnectionResponse {
 
 #[post("/v1/game/connect")]
 async fn route_game_connect(
-    app_data: web::Data<AppData>,
+    config: web::Data<ApiConfig>,
     pg_pool: web::Data<deadpool_postgres::Pool>,
     params: web::Json<GameConnectionParams>,
 ) -> Result<impl Responder, RouteError> {
@@ -53,18 +53,18 @@ async fn route_game_connect(
     let player_data = GamePlayerData::generate(uuid, nickname);
 
     let server_address = GameServerAddress {
-        address: app_data.config.game_server_address.clone(),
-        port: app_data.config.game_server_port,
+        address: config.game_server_address.clone(),
+        port: config.game_server_port,
     };
 
     let private_token = GameConnectionTokenPrivate::generate(
-        app_data.config.game_api_url.clone(),
-        app_data.config.game_api_token.clone(),
+        config.game_api_url.clone(),
+        config.game_api_token.clone(),
         player_data,
     );
     let token = GameConnectionToken::generate(
-        app_data.config.connection_token_key.into(),
-        app_data.config.game_api_token_duration,
+        config.connection_token_key.into(),
+        config.game_api_token_duration,
         server_address,
         private_token,
     );

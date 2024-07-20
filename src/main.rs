@@ -70,9 +70,9 @@ async fn main() -> Result<(), std::io::Error> {
 
     let data_config = web::Data::new(AppData {
         cache: Mutex::new(TimedCache::with_lifespan(config.cache_lifespan.as_secs())), // 5min
-        config,
         fetcher,
     });
+    let config = web::Data::new(config);
 
     let governor_conf = GovernorConfig::default();
 
@@ -87,6 +87,7 @@ async fn main() -> Result<(), std::io::Error> {
             .wrap(middleware::Logger::default())
             .wrap(Governor::new(&governor_conf))
             .app_data(data_config.clone())
+            .app_data(config.clone())
             .app_data(pg_pool.clone())
             .service(route_game_version)
             .service(route_player_auth)
