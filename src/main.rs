@@ -2,26 +2,19 @@ use actix_governor::{Governor, GovernorConfig, GovernorConfigBuilder};
 use actix_web::{middleware, web, App, HttpServer};
 use cached::TimedCache;
 use confy::ConfyError;
-use game_connection::route_game_connect;
-use players::route_player_auth;
 use tokio::sync::Mutex;
 
 use crate::app_data::AppData;
 use crate::config::ApiConfig;
 use crate::fetcher::Fetcher;
-use crate::players::route_player_create;
-use crate::version::route_game_version;
 
 mod app_data;
 mod config;
 mod errors;
 mod fetcher;
-mod game_connection;
-mod game_connection_token;
 mod game_data;
 mod metaprog;
-mod players;
-mod version;
+mod routes;
 
 use tokio_postgres::NoTls;
 
@@ -90,13 +83,13 @@ async fn main() -> Result<(), std::io::Error> {
             .app_data(data_config.clone())
             .app_data(config.clone())
             .app_data(pg_pool.clone())
-            .service(route_game_version)
-            .service(route_player_auth)
-            .service(route_game_connect)
+            .service(routes::version::game_version)
+            .service(routes::players::auth)
+            .service(routes::connection::game_connect)
             .service(
                 web::scope("")
                     .wrap(Governor::new(&player_create_governor_conf))
-                    .service(route_player_create),
+                    .service(routes::players::create),
             )
     })
     .bind(bind_address)?

@@ -1,14 +1,14 @@
 use actix_web::{post, web, HttpResponse, Responder};
 use deadpool_postgres::tokio_postgres::types::Type;
 use serde::{Deserialize, Serialize};
+use token::{PlayerData, PrivateToken, ServerAddress, Token};
 use uuid::Uuid;
 
 use crate::config::ApiConfig;
 use crate::errors::api::{ErrorCause, ErrorCode, RequestError, RouteError};
-use crate::game_connection_token::{
-    GameConnectionToken, GameConnectionTokenPrivate, GamePlayerData, GameServerAddress,
-};
-use crate::players::validate_player_token;
+use crate::routes::players::validate_player_token;
+
+mod token;
 
 #[derive(Deserialize)]
 struct GameConnectionParams {
@@ -22,7 +22,7 @@ struct GameConnectionResponse {
 }
 
 #[post("/v1/game/connect")]
-async fn route_game_connect(
+async fn game_connect(
     config: web::Data<ApiConfig>,
     pg_pool: web::Data<deadpool_postgres::Pool>,
     params: web::Json<GameConnectionParams>,
@@ -48,19 +48,16 @@ async fn route_game_connect(
     let uuid: Uuid = player_result[0].get(0);
     let nickname: String = player_result[0].get(1);
 
-    let player_data = GamePlayerData::generate(uuid, nickname);
+    let player_data = PlayerData::generate(uuid, nickname);
 
-    let server_address = GameServerAddress {
-        address: config.game_server_address.clone(),
-        port: config.game_server_port,
-    };
+    let server_address = ServerAddress::new(&config.game_server_address, config.game_server_port);
 
-    let private_token = GameConnectionTokenPrivate::generate(
-        config.game_api_url.clone(),
-        config.game_api_token.clone(),
+    let private_token = PrivateToken::generate(
+        config.game_api_url.as_str(),
+        config.game_api_token.as_str(),
         player_data,
     );
-    let Ok(token) = GameConnectionToken::generate(
+    let Ok(token) = Token::generate(
         config.connection_token_key.into(),
         config.game_api_token_duration,
         server_address,

@@ -10,35 +10,6 @@ use uuid::Uuid;
 use crate::config::ApiConfig;
 use crate::errors::api::{ErrorCode, RequestError, RouteError};
 
-pub async fn validate_player_token(
-    pg_client: &deadpool_postgres::Client,
-    token: &str,
-) -> Result<i32, RouteError> {
-    if token.is_empty() || token.len() > 64 {
-        return Err(RouteError::InvalidRequest(RequestError::new(
-            ErrorCode::AuthenticationInvalidToken,
-            "Invalid token".to_string(),
-        )));
-    }
-
-    let find_token_statement = pg_client
-        .prepare_typed_cached(
-            "SELECT player_id FROM player_tokens WHERE token = $1",
-            &[Type::VARCHAR],
-        )
-        .await?;
-
-    let token_result = pg_client.query(&find_token_statement, &[&token]).await?;
-    if token_result.is_empty() {
-        return Err(RouteError::InvalidRequest(RequestError::new(
-            ErrorCode::AuthenticationInvalidToken,
-            "Invalid token".to_string(),
-        )));
-    }
-
-    Ok(token_result[0].get(0))
-}
-
 #[derive(Deserialize)]
 struct CreatePlayerParams {
     nickname: String,
@@ -51,7 +22,7 @@ struct CreatePlayerResponse {
 }
 
 #[post("/v1/players")]
-async fn route_player_create(
+async fn create(
     pg_pool: web::Data<deadpool_postgres::Pool>,
     config: web::Data<ApiConfig>,
     params: web::Json<CreatePlayerParams>,
@@ -136,7 +107,7 @@ struct AuthenticationResponse {
 }
 
 #[post("/v1/player/auth")]
-async fn route_player_auth(
+async fn auth(
     pg_pool: web::Data<deadpool_postgres::Pool>,
     params: web::Json<AuthenticationParams>,
 ) -> Result<impl Responder, RouteError> {
@@ -186,4 +157,33 @@ async fn route_player_auth(
         uuid: uuid.to_string(),
         nickname,
     }))
+}
+
+pub async fn validate_player_token(
+    pg_client: &deadpool_postgres::Client,
+    token: &str,
+) -> Result<i32, RouteError> {
+    if token.is_empty() || token.len() > 64 {
+        return Err(RouteError::InvalidRequest(RequestError::new(
+            ErrorCode::AuthenticationInvalidToken,
+            "Invalid token".to_string(),
+        )));
+    }
+
+    let find_token_statement = pg_client
+        .prepare_typed_cached(
+            "SELECT player_id FROM player_tokens WHERE token = $1",
+            &[Type::VARCHAR],
+        )
+        .await?;
+
+    let token_result = pg_client.query(&find_token_statement, &[&token]).await?;
+    if token_result.is_empty() {
+        return Err(RouteError::InvalidRequest(RequestError::new(
+            ErrorCode::AuthenticationInvalidToken,
+            "Invalid token".to_string(),
+        )));
+    }
+
+    Ok(token_result[0].get(0))
 }

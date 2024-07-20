@@ -21,7 +21,7 @@ pub(crate) enum CachedReleased {
 }
 
 #[get("/game_version")]
-async fn route_game_version(
+async fn game_version(
     app_data: web::Data<AppData>,
     config: web::Data<ApiConfig>,
     ver_query: web::Query<VersionQuery>,

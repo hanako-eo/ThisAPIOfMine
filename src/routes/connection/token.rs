@@ -16,15 +16,15 @@ const TOKEN_VERSION: u32 = 1;
 
 #[serde_as]
 #[derive(Debug, Serialize)]
-pub struct GameEncryptionKeys {
+struct EncryptionKeys {
     #[serde_as(as = "Base64")]
-    pub client_to_server: chacha20poly1305::Key,
+    client_to_server: chacha20poly1305::Key,
     #[serde_as(as = "Base64")]
-    pub server_to_client: chacha20poly1305::Key,
+    server_to_client: chacha20poly1305::Key,
 }
 
-impl GameEncryptionKeys {
-    pub fn generate<R>(rng: R) -> Self
+impl EncryptionKeys {
+    fn generate<R>(rng: R) -> Self
     where
         R: CryptoRng + RngCore + Copy,
     {
@@ -36,14 +36,20 @@ impl GameEncryptionKeys {
 }
 
 #[derive(Debug, Serialize)]
-pub struct GameServerAddress {
-    pub address: String,
-    pub port: u16,
+pub struct ServerAddress<'s> {
+    address: &'s str,
+    port: u16,
+}
+
+impl<'s> ServerAddress<'s> {
+    pub fn new(address: &'s str, port: u16) -> Self {
+        Self { address, port }
+    }
 }
 
 #[derive(Debug, DekuWrite)]
 #[deku(endian = "little")]
-pub struct GameConnectionTokenAdditionalData {
+pub struct AdditionalTokenData {
     pub token_version: u32,
     pub expire_timestamp: u64,
     #[deku(writer = "deku_helper_write_key(deku::writer, &self.client_to_server_key)")]
@@ -54,32 +60,32 @@ pub struct GameConnectionTokenAdditionalData {
 
 #[serde_as]
 #[derive(Debug, Serialize)]
-pub struct GameConnectionToken {
+pub struct Token<'a> {
     token_version: u32,
     #[serde_as(as = "Base64")]
     token_nonce: chacha20poly1305::XNonce,
     creation_timestamp: u64,
     expire_timestamp: u64,
-    encryption_keys: GameEncryptionKeys,
-    game_server: GameServerAddress,
+    encryption_keys: EncryptionKeys,
+    game_server: ServerAddress<'a>,
     #[serde_as(as = "Base64")]
     private_token_data: Vec<u8>,
 }
 
-impl GameConnectionToken {
+impl<'a> Token<'a> {
     pub fn generate(
         token_key: chacha20poly1305::Key,
         duration: Duration,
-        server_address: GameServerAddress,
-        private_token: GameConnectionTokenPrivate,
+        server_address: ServerAddress<'a>,
+        private_token: PrivateToken,
     ) -> Result<Self> {
         let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?;
 
-        let encryption_keys = GameEncryptionKeys::generate(OsRng);
+        let encryption_keys = EncryptionKeys::generate(OsRng);
 
         let expire_timestamp = timestamp + duration;
 
-        let additional_data = GameConnectionTokenAdditionalData {
+        let additional_data = AdditionalTokenData {
             token_version: TOKEN_VERSION,
             expire_timestamp: expire_timestamp.as_secs(),
             client_to_server_key: encryption_keys.client_to_server,
@@ -94,13 +100,11 @@ impl GameConnectionToken {
         private_token_bytes.resize(private_token_bytes.len() + XCHACHA20POLY1305_IETF_ABYTES, 0);
 
         let mut cipher = XChaCha20Poly1305::new(&token_key);
-        cipher
-            .encrypt_in_place(
-                &nonce,
-                additional_data_bytes.as_slice(),
-                &mut private_token_bytes,
-            )
-            .unwrap();
+        cipher.encrypt_in_place(
+            &nonce,
+            additional_data_bytes.as_slice(),
+            &mut private_token_bytes,
+        )?;
 
         Ok(Self {
             token_version: TOKEN_VERSION,
@@ -116,14 +120,14 @@ impl GameConnectionToken {
 
 #[derive(Debug, DekuWrite)]
 #[deku(endian = "endian", ctx = "endian: deku::ctx::Endian")]
-pub struct GamePlayerData {
+pub struct PlayerData {
     #[deku(writer = "deku_helper_write_uuid(deku::writer, &self.uuid)")]
     uuid: Uuid,
     #[deku(writer = "deku_helper_write_str(deku::writer, &self.nickname)")]
     nickname: String,
 }
 
-impl GamePlayerData {
+impl PlayerData {
     pub fn generate(uuid: Uuid, nickname: String) -> Self {
         Self { uuid, nickname }
     }
@@ -131,19 +135,19 @@ impl GamePlayerData {
 
 #[derive(Debug, DekuWrite)]
 #[deku(endian = "little")]
-pub struct GameConnectionTokenPrivate {
-    #[deku(writer = "deku_helper_write_str(deku::writer, &self.api_token)")]
-    api_token: String,
-    #[deku(writer = "deku_helper_write_str(deku::writer, &self.api_url)")]
-    api_url: String,
-    player_data: GamePlayerData,
+pub struct PrivateToken<'s> {
+    #[deku(writer = "deku_helper_write_str(deku::writer, self.api_token)")]
+    api_token: &'s str,
+    #[deku(writer = "deku_helper_write_str(deku::writer, self.api_url)")]
+    api_url: &'s str,
+    player_data: PlayerData,
 }
 
-impl GameConnectionTokenPrivate {
+impl<'s> PrivateToken<'s> {
     pub fn generate(
-        game_api_url: String,
-        game_api_token: String,
-        player_data: GamePlayerData,
+        game_api_url: &'s str,
+        game_api_token: &'s str,
+        player_data: PlayerData,
     ) -> Self {
         Self {
             api_token: game_api_token,
