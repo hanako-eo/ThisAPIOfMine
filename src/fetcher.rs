@@ -63,8 +63,8 @@ impl Fetcher {
                     Ok(sha256) => Some(sha256),
                     Err(err) => match err.is::<reqwest::Error>() {
                         true => None,
-                        false => return Err(err)
-                    }
+                        false => return Err(err),
+                    },
                 };
 
                 Ok((platform.to_string(), asset))
@@ -80,8 +80,8 @@ impl Fetcher {
                     Ok(sha256) => Some(sha256),
                     Err(err) => match err.is::<reqwest::Error>() {
                         true => None,
-                        false => return Err(err)
-                    }
+                        false => return Err(err),
+                    },
                 };
 
                 binaries.insert(platform.to_string(), asset);
@@ -117,8 +117,8 @@ impl Fetcher {
                     Ok(sha256) => Some(sha256),
                     Err(err) => match err.is::<reqwest::Error>() {
                         true => None,
-                        false => return Err(err)
-                    }
+                        false => return Err(err),
+                    },
                 };
 
                 Ok((platform.to_string(), asset))

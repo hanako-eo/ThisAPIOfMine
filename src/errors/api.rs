@@ -74,7 +74,6 @@ impl ResponseError for RouteError {
     }
 }
 
-
 // to delete '$into_type:path' you need to use proc macros and further manipulation of the AST
 macro_rules! error_from {
     (transform $from:path, $into_type:path, |$err_name:ident| $blk:block) => {

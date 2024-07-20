@@ -26,10 +26,7 @@ async fn route_game_version(
     config: web::Data<ApiConfig>,
     ver_query: web::Query<VersionQuery>,
 ) -> impl Responder {
-    let AppData {
-        cache,
-        fetcher,
-    } = app_data.as_ref();
+    let AppData { cache, fetcher } = app_data.as_ref();
     let mut cache = cache.lock().await;
 
     // TODO: remove .cloned

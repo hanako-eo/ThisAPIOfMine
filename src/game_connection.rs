@@ -3,11 +3,12 @@ use deadpool_postgres::tokio_postgres::types::Type;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{
-    config::ApiConfig, errors::api::{ErrorCause, ErrorCode, RequestError, RouteError}, game_connection_token::{
-        GameConnectionToken, GameConnectionTokenPrivate, GamePlayerData, GameServerAddress,
-    }, players::validate_player_token
+use crate::config::ApiConfig;
+use crate::errors::api::{ErrorCause, ErrorCode, RequestError, RouteError};
+use crate::game_connection_token::{
+    GameConnectionToken, GameConnectionTokenPrivate, GamePlayerData, GameServerAddress,
 };
+use crate::players::validate_player_token;
 
 #[derive(Deserialize)]
 struct GameConnectionParams {
@@ -65,7 +66,10 @@ async fn route_game_connect(
         server_address,
         private_token,
     ) else {
-        return Err(RouteError::ServerError(ErrorCause::Internal, ErrorCode::TokenGenerationFailed));
+        return Err(RouteError::ServerError(
+            ErrorCause::Internal,
+            ErrorCode::TokenGenerationFailed,
+        ));
     };
 
     Ok(HttpResponse::Ok().json(token))

@@ -1,14 +1,18 @@
-use chacha20poly1305::{
-    aead::{AeadCore, AeadMutInPlace, KeyInit, OsRng},
-    XChaCha20Poly1305,
-};
+use chacha20poly1305::aead::{AeadCore, AeadMutInPlace, KeyInit, OsRng};
+use chacha20poly1305::XChaCha20Poly1305;
 use deku::prelude::*;
+use rand_core::{CryptoRng, RngCore};
 use serde::Serialize;
 use serde_with::{base64::Base64, serde_as};
+use std::mem::size_of;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
-const XCHACHA20POLY1305_IETF_ABYTES: usize = 16; //< todo: Get it from chacha20poly1305::Tag
+use crate::errors::Result;
+
+// size_of will give the correct size of a tag (16)
+const XCHACHA20POLY1305_IETF_ABYTES: usize = size_of::<chacha20poly1305::Tag>();
+const TOKEN_VERSION: u32 = 1;
 
 #[serde_as]
 #[derive(Debug, Serialize)]
@@ -20,10 +24,13 @@ pub struct GameEncryptionKeys {
 }
 
 impl GameEncryptionKeys {
-    pub fn generate() -> Self {
+    pub fn generate<R>(rng: R) -> Self
+    where
+        R: CryptoRng + RngCore + Copy,
+    {
         Self {
-            client_to_server: XChaCha20Poly1305::generate_key(&mut OsRng),
-            server_to_client: XChaCha20Poly1305::generate_key(&mut OsRng),
+            client_to_server: XChaCha20Poly1305::generate_key(rng),
+            server_to_client: XChaCha20Poly1305::generate_key(rng),
         }
     }
 }
@@ -68,13 +75,12 @@ impl GameConnectionToken {
     ) -> Result<Self> {
         let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?;
 
-        let encryption_keys = GameEncryptionKeys::generate();
+        let encryption_keys = GameEncryptionKeys::generate(OsRng);
 
-        let token_version = 1u32;
         let expire_timestamp = timestamp + duration;
 
         let additional_data = GameConnectionTokenAdditionalData {
-            token_version,
+            token_version: TOKEN_VERSION,
             expire_timestamp: expire_timestamp.as_secs(),
             client_to_server_key: encryption_keys.client_to_server,
             server_to_client_key: encryption_keys.server_to_client,
@@ -82,7 +88,7 @@ impl GameConnectionToken {
 
         let additional_data_bytes = additional_data.to_bytes()?;
 
-        let nonce = XChaCha20Poly1305::generate_nonce(&mut OsRng);
+        let nonce = XChaCha20Poly1305::generate_nonce(OsRng);
 
         let mut private_token_bytes = private_token.to_bytes()?;
         private_token_bytes.resize(private_token_bytes.len() + XCHACHA20POLY1305_IETF_ABYTES, 0);
@@ -97,7 +103,7 @@ impl GameConnectionToken {
             .unwrap();
 
         Ok(Self {
-            token_version,
+            token_version: TOKEN_VERSION,
             token_nonce: nonce,
             creation_timestamp: timestamp.as_secs(),
             expire_timestamp: expire_timestamp.as_secs(),

@@ -17,14 +17,14 @@ pub enum InternalError {
     // ConnectionTokenError
     SystemTimeError,
 
-    External(Box<dyn Error + Send>)
+    External(Box<dyn Error + Send>),
 }
 
 impl InternalError {
     pub fn is<T: Error + 'static>(&self) -> bool {
         match self {
             Self::External(err) => err.is::<T>(),
-            _ => false
+            _ => false,
         }
     }
 }

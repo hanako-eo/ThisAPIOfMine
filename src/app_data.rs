@@ -1,5 +1,6 @@
 use cached::TimedCache;
 use tokio::sync::Mutex;
+
 use crate::fetcher::Fetcher;
 use crate::version::CachedReleased;
 
