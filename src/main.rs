@@ -1,11 +1,15 @@
+use std::borrow::Cow;
+
 use actix_governor::{Governor, GovernorConfig, GovernorConfigBuilder};
 use actix_web::{middleware, web, App, HttpServer};
 use cached::TimedCache;
 use confy::ConfyError;
 use tokio::sync::Mutex;
+use tokio_postgres::NoTls;
 
 use crate::app_data::AppData;
 use crate::config::ApiConfig;
+use crate::errors::Result;
 use crate::fetcher::Fetcher;
 
 mod app_data;
@@ -16,9 +20,9 @@ mod game_data;
 mod metaprog;
 mod routes;
 
-use tokio_postgres::NoTls;
+const CONFIG_FILE: Cow<'static, str> = Cow::Borrowed("tsom_api_config.toml");
 
-fn setup_pg_pool(api_config: &ApiConfig) -> deadpool_postgres::Pool {
+async fn setup_pg_pool(api_config: &ApiConfig) -> Result<deadpool_postgres::Pool> {
     use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
 
     let mut pg_config = Config::new();
@@ -30,32 +34,50 @@ fn setup_pg_pool(api_config: &ApiConfig) -> deadpool_postgres::Pool {
         recycling_method: RecyclingMethod::Fast,
     });
 
-    pg_config.create_pool(Some(Runtime::Tokio1), NoTls).unwrap()
+    let pool = pg_config.create_pool(Some(Runtime::Tokio1), NoTls)?;
+
+    // Try to connect to database to test if the database exist
+    let _ = pool.get().await?;
+
+    Ok(pool)
 }
 
 #[actix_web::main]
 async fn main() -> Result<(), std::io::Error> {
-    let config = match confy::load_path("tsom_api_config.toml") {
+    let mut args = std::env::args();
+    args.next(); // skip the executable name
+
+    let config_file = args.next().map(Cow::Owned).unwrap_or(CONFIG_FILE);
+    let config = match confy::load_path::<ApiConfig>(config_file.as_ref()) {
         Ok(config) => config,
         Err(ConfyError::BadTomlData(err)) => panic!(
-            "an error occured on the parsing of the file tsom_api_config.toml:\n{}",
+            "an error occured on the parsing of the file {config_file}:\n{}",
             err.message()
         ),
         Err(ConfyError::GeneralLoadError(err)) => panic!(
-            "an error occured on the loading of the file tsom_api_config.toml:\n{}",
+            "an error occured on the loading of the file {config_file}:\n{}",
             err.kind()
         ),
-        Err(_) => panic!(
-            "wrong data in the file, failed to load config, please check tsom_api_config.toml"
-        ),
+        Err(_) => {
+            panic!("wrong data in the file, failed to load config, please check {config_file}")
+        }
     };
     let fetcher = Fetcher::from_config(&config).unwrap();
 
-    let pg_pool = web::Data::new(setup_pg_pool(&config));
+    let pg_pool = match setup_pg_pool(&config).await {
+        Ok(pool) => web::Data::new(pool),
+        Err(err) => {
+            use deadpool_postgres::{CreatePoolError, PoolError};
 
-    // Try to connect to database
-    let test_client = pg_pool.get().await.expect("failed to connect to database");
-    drop(test_client);
+            if err.is::<CreatePoolError>() {
+                panic!("an error occured during the creation of the pool")
+            } else if err.is::<PoolError>() {
+                panic!("failed to connect to database")
+            } else {
+                unreachable!()
+            }
+        }
+    };
 
     std::env::set_var("RUST_LOG", "info,actix_web=info");
     env_logger::init();
