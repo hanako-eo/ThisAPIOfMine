@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use actix_web::{get, web};
 use actix_web::{HttpResponse, Responder};
 use cached::CachedAsync;
@@ -7,7 +5,8 @@ use serde::Deserialize;
 
 use crate::app_data::AppData;
 use crate::config::ApiConfig;
-use crate::game_data::{Asset, GameRelease, GameVersion};
+use crate::errors::api::{ErrorCause, ErrorCode, PlatformError, RouteError};
+use crate::game_data::{Assets, GameRelease, GameVersion};
 
 #[derive(Deserialize)]
 struct VersionQuery {
@@ -16,7 +15,7 @@ struct VersionQuery {
 
 #[derive(Clone)]
 pub(crate) enum CachedReleased {
-    Updater(HashMap<String, Asset>),
+    Updater(Assets),
     Game(GameRelease),
 }
 
@@ -25,7 +24,8 @@ async fn game_version(
     app_data: web::Data<AppData>,
     config: web::Data<ApiConfig>,
     ver_query: web::Query<VersionQuery>,
-) -> impl Responder {
+) -> Result<impl Responder, RouteError> {
+    let VersionQuery { platform } = ver_query.0;
     let AppData { cache, fetcher } = app_data.as_ref();
     let mut cache = cache.lock().await;
 
@@ -40,8 +40,10 @@ async fn game_version(
         .await
         .cloned()
     else {
-        // TODO: improve the delivery of error (with crate::errors::api)
-        return HttpResponse::InternalServerError().finish();
+        return Err(RouteError::ServerError(
+            ErrorCause::Internal,
+            ErrorCode::FetchUpdaterRelease,
+        ));
     };
 
     // TODO: remove .cloned
@@ -55,24 +57,25 @@ async fn game_version(
         .await
         .cloned()
     else {
-        // TODO: improve the delivery of error (with crate::errors::api)
-        return HttpResponse::InternalServerError().finish();
+        return Err(RouteError::ServerError(
+            ErrorCause::Internal,
+            ErrorCode::FetchGameRelease,
+        ));
     };
 
-    let updater_filename = format!("{}_{}", ver_query.platform, config.updater_filename);
+    let updater_filename = format!("{}_{}", platform, config.updater_filename);
 
     let (Some(updater), Some(binary)) = (
         updater_release.get(&updater_filename),
-        game_release.binaries.get(&ver_query.platform),
+        game_release.binaries.get(&platform),
     ) else {
-        eprintln!(
-            "no updater or game binary release found for platform {}",
-            ver_query.platform
-        );
-        return HttpResponse::NotFound().finish();
+        eprintln!("no updater or game binary release found for platform {platform}");
+        return Err(RouteError::NotFoundPlatform(PlatformError::new(format!(
+            "no updater or game binary release found for platform {platform}"
+        ))));
     };
 
-    HttpResponse::Ok().json(web::Json(GameVersion {
+    Ok(HttpResponse::Ok().json(GameVersion {
         assets: game_release.assets,
         assets_version: game_release.assets_version.to_string(),
         binaries: binary.clone(),

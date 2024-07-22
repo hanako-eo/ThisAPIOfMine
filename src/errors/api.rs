@@ -11,18 +11,23 @@ pub enum ErrorCause {
     Internal,
 }
 
-#[derive(Debug, AsRefStr)]
+#[derive(Debug, Clone, AsRefStr)]
 #[strum(serialize_all = "snake_case")]
 pub enum ErrorCode {
-    AuthenticationInvalidToken,
+    FetchUpdaterRelease,
+    FetchGameRelease,
+
     NicknameEmpty,
     NicknameToolong,
     NicknameForbiddenCharacters,
 
+    AuthenticationInvalidToken,
+    EmptyToken,
     TokenGenerationFailed,
 
     #[strum(to_string = "{0}")]
     External(String),
+    Internal,
 }
 
 #[derive(Debug, Serialize)]
@@ -31,10 +36,16 @@ pub struct RequestError {
     err_desc: String,
 }
 
+#[derive(Debug, Serialize)]
+pub struct PlatformError {
+    err_desc: String,
+}
+
 #[derive(Debug)]
 pub enum RouteError {
     ServerError(ErrorCause, ErrorCode),
     InvalidRequest(RequestError),
+    NotFoundPlatform(PlatformError),
 }
 
 impl Serialize for ErrorCode {
@@ -49,6 +60,12 @@ impl RequestError {
     }
 }
 
+impl PlatformError {
+    pub fn new(err_desc: String) -> Self {
+        Self { err_desc }
+    }
+}
+
 impl fmt::Display for RouteError {
     fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
         unimplemented!()
@@ -58,18 +75,31 @@ impl fmt::Display for RouteError {
 impl ResponseError for RouteError {
     fn status_code(&self) -> StatusCode {
         match self {
-            RouteError::ServerError(..) => StatusCode::INTERNAL_SERVER_ERROR,
-            RouteError::InvalidRequest(_) => StatusCode::BAD_REQUEST,
+            Self::ServerError(..) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::InvalidRequest(_) => StatusCode::BAD_REQUEST,
+            Self::NotFoundPlatform(_) => StatusCode::NOT_FOUND,
         }
     }
 
     fn error_response(&self) -> HttpResponse<BoxBody> {
         match self {
-            RouteError::ServerError(cause, err_code) => {
+            Self::ServerError(cause, err_code) => {
                 eprintln!("{cause:?} error: {}", err_code.as_ref());
-                HttpResponse::InternalServerError().finish()
+                HttpResponse::InternalServerError().json(RequestError {
+                    err_code: match err_code {
+                        ErrorCode::External(_) => ErrorCode::Internal,
+                        err_code => err_code.clone(),
+                    },
+                    err_desc: match err_code {
+                        ErrorCode::External(_) | ErrorCode::Internal => {
+                            "an internal error occured, please retry later.".to_string()
+                        }
+                        err_code => err_code.as_ref().to_string(),
+                    },
+                })
             }
-            RouteError::InvalidRequest(err) => HttpResponse::BadRequest().json(err),
+            Self::InvalidRequest(err) => HttpResponse::BadRequest().json(err),
+            Self::NotFoundPlatform(err) => HttpResponse::NotFound().json(err),
         }
     }
 }

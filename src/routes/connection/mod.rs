@@ -30,6 +30,7 @@ async fn game_connect(
     let pg_client = pg_pool.get().await?;
     let player_id = validate_player_token(&pg_client, &params.token).await?;
 
+    // TODO(SirLynix): to do this with only one query
     let find_player_info = pg_client
         .prepare_typed_cached(
             "SELECT uuid, nickname FROM players WHERE id = $1",
@@ -37,21 +38,21 @@ async fn game_connect(
         )
         .await?;
 
-    let player_result = pg_client.query(&find_player_info, &[&player_id]).await?;
-    if player_result.is_empty() {
-        // TODO: improve the delivered error
-        return Err(RouteError::InvalidRequest(RequestError::new(
+    let player_result = pg_client
+        .query_opt(&find_player_info, &[&player_id])
+        .await?
+        .ok_or(RouteError::InvalidRequest(RequestError::new(
             ErrorCode::AuthenticationInvalidToken,
-            "Invalid token".to_string(),
-        )));
-    }
+            format!("No player has the id '{player_id}'."),
+        )))?;
 
-    let uuid: Uuid = player_result[0].get(0);
-    let nickname: String = player_result[0].get(1);
+    let uuid: Uuid = player_result.try_get(0)?;
+    let nickname: String = player_result.try_get(1)?;
 
     let player_data = PlayerData::generate(uuid, nickname);
 
-    let server_address = ServerAddress::new(&config.game_server_address, config.game_server_port);
+    let server_address =
+        ServerAddress::new(config.game_server_address.as_str(), config.game_server_port);
 
     let private_token = PrivateToken::generate(
         config.game_api_url.as_str(),
@@ -64,7 +65,6 @@ async fn game_connect(
         server_address,
         private_token,
     ) else {
-        // TODO: improve the delivered error
         return Err(RouteError::ServerError(
             ErrorCause::Internal,
             ErrorCode::TokenGenerationFailed,
