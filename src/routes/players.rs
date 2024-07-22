@@ -141,11 +141,11 @@ async fn auth(
             Ok(statement) => {
                 let res = pg_client.query(&statement, &[&player_id]).await;
                 if let Err(err) = res {
-                    eprintln!("failed to update player {player_id} connection time: {err}");
+                    log::error!("failed to update player {player_id} connection time: {err}");
                 }
             }
             Err(err) => {
-                eprintln!("failed to update player {player_id} connection time (failed to prepare query): {err}");
+                log::error!("failed to update player {player_id} connection time (failed to prepare query): {err}");
             }
         }
     });

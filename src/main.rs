@@ -44,10 +44,15 @@ async fn setup_pg_pool(api_config: &ApiConfig) -> Result<deadpool_postgres::Pool
 
 #[actix_web::main]
 async fn main() -> Result<(), std::io::Error> {
+    std::env::set_var("RUST_LOG", "info,actix_web=info");
+    env_logger::init();
+
     let mut args = std::env::args();
     args.next(); // skip the executable name
 
     let config_file = args.next().map(Cow::Owned).unwrap_or(CONFIG_FILE);
+
+    log::info!("Reading the config file {config_file}");
     let config = match confy::load_path::<ApiConfig>(config_file.as_ref()) {
         Ok(config) => config,
         Err(ConfyError::BadTomlData(err)) => panic!(
@@ -64,6 +69,7 @@ async fn main() -> Result<(), std::io::Error> {
     };
     let fetcher = Fetcher::from_config(&config).unwrap();
 
+    log::info!("Connection to the database");
     let pg_pool = match setup_pg_pool(&config).await {
         Ok(pool) => web::Data::new(pool),
         Err(err) => {
@@ -78,9 +84,6 @@ async fn main() -> Result<(), std::io::Error> {
             }
         }
     };
-
-    std::env::set_var("RUST_LOG", "info,actix_web=info");
-    env_logger::init();
 
     let bind_address = format!("{}:{}", config.listen_address, config.listen_port);
 
@@ -98,6 +101,7 @@ async fn main() -> Result<(), std::io::Error> {
         .finish()
         .unwrap();
 
+    log::info!("Server starting at the address {bind_address}");
     HttpServer::new(move || {
         App::new()
             .wrap(middleware::Logger::default())

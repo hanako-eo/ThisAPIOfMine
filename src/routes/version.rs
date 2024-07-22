@@ -65,7 +65,7 @@ async fn game_version(
         updater_release.get(&updater_filename),
         game_release.binaries.get(&ver_query.platform),
     ) else {
-        eprintln!(
+        log::error!(
             "no updater or game binary release found for platform {}",
             ver_query.platform
         );

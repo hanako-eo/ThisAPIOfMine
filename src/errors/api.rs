@@ -66,7 +66,7 @@ impl ResponseError for RouteError {
     fn error_response(&self) -> HttpResponse<BoxBody> {
         match self {
             RouteError::ServerError(cause, err_code) => {
-                eprintln!("{cause:?} error: {}", err_code.as_ref());
+                log::error!("{cause:?} error: {}", err_code.as_ref());
                 HttpResponse::InternalServerError().finish()
             }
             RouteError::InvalidRequest(err) => HttpResponse::BadRequest().json(err),
