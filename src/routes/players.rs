@@ -1,14 +1,14 @@
 use actix_web::{post, web, HttpResponse, Responder};
-use base64::prelude::*;
-use base64::Engine;
 use deadpool_postgres::tokio_postgres::types::Type;
 
-use rand_core::{OsRng, RngCore};
+use rand_core::OsRng;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::config::ApiConfig;
+use crate::errors::api::ErrorCause;
 use crate::errors::api::{ErrorCode, RequestError, RouteError};
+use crate::token::Token;
 
 #[derive(Deserialize)]
 struct CreatePlayerParams {
@@ -75,10 +75,12 @@ async fn create(
         )
         .await?;
 
-    let mut key = [0u8; 32];
-    OsRng.try_fill_bytes(&mut key)?;
-
-    let token = BASE64_STANDARD.encode(key);
+    let Ok(token) = Token::generate(OsRng) else {
+        return Err(RouteError::ServerError(
+            ErrorCause::Internal,
+            ErrorCode::TokenGenerationFailed,
+        ));
+    };
 
     let transaction = pg_client.transaction().await?;
     let created_player_result = transaction
@@ -95,7 +97,7 @@ async fn create(
 
     Ok(HttpResponse::Ok().json(CreatePlayerResponse {
         uuid: uuid.to_string(),
-        token,
+        token: token.to_string(),
     }))
 }
 

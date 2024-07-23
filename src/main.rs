@@ -19,6 +19,7 @@ mod fetcher;
 mod game_data;
 mod metaprog;
 mod routes;
+mod token;
 
 const CONFIG_FILE: Cow<'static, str> = Cow::Borrowed("tsom_api_config.toml");
 

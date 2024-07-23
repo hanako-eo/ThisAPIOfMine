@@ -1,7 +1,7 @@
 use actix_web::{post, web, HttpResponse, Responder};
 use deadpool_postgres::tokio_postgres::types::Type;
 use serde::{Deserialize, Serialize};
-use token::{PlayerData, PrivateToken, ServerAddress, Token};
+use token::{ConnectionToken, PlayerData, PrivateConnectionToken, ServerAddress};
 use uuid::Uuid;
 
 use crate::config::ApiConfig;
@@ -49,17 +49,17 @@ async fn game_connect(
     let uuid: Uuid = player_result.try_get(0)?;
     let nickname: String = player_result.try_get(1)?;
 
-    let player_data = PlayerData::generate(uuid, nickname);
+    let player_data = PlayerData::new(uuid, nickname);
 
     let server_address =
         ServerAddress::new(config.game_server_address.as_str(), config.game_server_port);
 
-    let private_token = PrivateToken::generate(
+    let private_token = PrivateConnectionToken::new(
         config.game_api_url.as_str(),
         config.game_api_token.as_str(),
         player_data,
     );
-    let Ok(token) = Token::generate(
+    let Ok(token) = ConnectionToken::generate(
         config.connection_token_key.into(),
         config.game_api_token_duration,
         server_address,

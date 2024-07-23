@@ -60,7 +60,7 @@ pub struct AdditionalTokenData {
 
 #[serde_as]
 #[derive(Debug, Serialize)]
-pub struct Token<'a> {
+pub struct ConnectionToken<'a> {
     token_version: u32,
     #[serde_as(as = "Base64")]
     token_nonce: chacha20poly1305::XNonce,
@@ -72,12 +72,12 @@ pub struct Token<'a> {
     private_token_data: Vec<u8>,
 }
 
-impl<'a> Token<'a> {
+impl<'a> ConnectionToken<'a> {
     pub fn generate(
         token_key: chacha20poly1305::Key,
         duration: Duration,
         server_address: ServerAddress<'a>,
-        private_token: PrivateToken,
+        private_token: PrivateConnectionToken,
     ) -> Result<Self> {
         let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?;
 
@@ -128,14 +128,14 @@ pub struct PlayerData {
 }
 
 impl PlayerData {
-    pub fn generate(uuid: Uuid, nickname: String) -> Self {
+    pub fn new(uuid: Uuid, nickname: String) -> Self {
         Self { uuid, nickname }
     }
 }
 
 #[derive(Debug, DekuWrite)]
 #[deku(endian = "little")]
-pub struct PrivateToken<'s> {
+pub struct PrivateConnectionToken<'s> {
     #[deku(writer = "deku_helper_write_str(deku::writer, self.api_token)")]
     api_token: &'s str,
     #[deku(writer = "deku_helper_write_str(deku::writer, self.api_url)")]
@@ -143,15 +143,11 @@ pub struct PrivateToken<'s> {
     player_data: PlayerData,
 }
 
-impl<'s> PrivateToken<'s> {
-    pub fn generate(
-        game_api_url: &'s str,
-        game_api_token: &'s str,
-        player_data: PlayerData,
-    ) -> Self {
+impl<'s> PrivateConnectionToken<'s> {
+    pub fn new(api_url: &'s str, api_token: &'s str, player_data: PlayerData) -> Self {
         Self {
-            api_token: game_api_token,
-            api_url: game_api_url,
+            api_token,
+            api_url,
             player_data,
         }
     }
