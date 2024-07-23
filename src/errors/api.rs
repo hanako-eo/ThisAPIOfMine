@@ -1,6 +1,6 @@
 use actix_web::body::BoxBody;
 use actix_web::http::StatusCode;
-use actix_web::{HttpResponse, ResponseError};
+use actix_web::{HttpResponse, HttpResponseBuilder, ResponseError};
 use serde::{Serialize, Serializer};
 use std::fmt;
 use strum::AsRefStr;
@@ -82,10 +82,11 @@ impl ResponseError for RouteError {
     }
 
     fn error_response(&self) -> HttpResponse<BoxBody> {
+        let mut response = HttpResponseBuilder::new(self.status_code());
         match self {
             Self::ServerError(cause, err_code) => {
                 log::error!("{cause:?} error: {}", err_code.as_ref());
-                HttpResponse::InternalServerError().json(RequestError {
+                response.json(RequestError {
                     err_code: match err_code {
                         ErrorCode::External(_) => ErrorCode::Internal,
                         err_code => err_code.clone(),
@@ -98,8 +99,8 @@ impl ResponseError for RouteError {
                     },
                 })
             }
-            Self::InvalidRequest(err) => HttpResponse::BadRequest().json(err),
-            Self::NotFoundPlatform(err) => HttpResponse::NotFound().json(err),
+            Self::InvalidRequest(err) => response.json(err),
+            Self::NotFoundPlatform(err) => response.json(err),
         }
     }
 }
