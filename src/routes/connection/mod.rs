@@ -38,6 +38,13 @@ async fn game_connect(
         )
         .await?;
 
+    let get_player_permissions = pg_client
+        .prepare_typed_cached(
+            "SELECT permission FROM player_permissions WHERE player_id = $1",
+            &[Type::INT4],
+        )
+        .await?;
+
     let player_result = pg_client
         .query_opt(&find_player_info, &[&player_id])
         .await?
@@ -46,10 +53,19 @@ async fn game_connect(
             format!("No player has the id '{player_id}'."),
         )))?;
 
+    let permission_result = pg_client
+        .query(&get_player_permissions, &[&player_id])
+        .await?;
+
+    let mut permissions = Vec::<String>::new();
+    for row in permission_result {
+        permissions.push(row.get(0));
+    }
+
     let uuid: Uuid = player_result.try_get(0)?;
     let nickname: String = player_result.try_get(1)?;
 
-    let player_data = PlayerData::new(uuid, nickname);
+    let player_data = PlayerData::new(uuid, nickname, permissions);
 
     let server_address =
         ServerAddress::new(config.game_server_address.as_str(), config.game_server_port);

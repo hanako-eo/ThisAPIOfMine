@@ -12,7 +12,7 @@ use crate::errors::Result;
 
 // size_of will give the correct size of a tag (16)
 const XCHACHA20POLY1305_IETF_ABYTES: usize = size_of::<chacha20poly1305::Tag>();
-const TOKEN_VERSION: u32 = 1;
+const TOKEN_VERSION: u32 = 2;
 
 #[serde_as]
 #[derive(Debug, Serialize)]
@@ -125,11 +125,13 @@ pub struct PlayerData {
     uuid: Uuid,
     #[deku(writer = "deku_helper_write_str(deku::writer, &self.nickname)")]
     nickname: String,
+    #[deku(writer = "deku_helper_write_vec_str(deku::writer, &self.permissions)")]
+    permissions: Vec<String>
 }
 
 impl PlayerData {
-    pub fn new(uuid: Uuid, nickname: String) -> Self {
-        Self { uuid, nickname }
+    pub fn new(uuid: Uuid, nickname: String, permissions: Vec<String>) -> Self {
+        Self { uuid, nickname, permissions }
     }
 }
 
@@ -169,6 +171,20 @@ fn deku_helper_write_str<W: std::io::Write>(
     let str_len = str_bytes.len() as u32;
     str_len.to_writer(writer, ())?;
     str_bytes.to_writer(writer, ())
+}
+
+fn deku_helper_write_vec_str<W: std::io::Write>(
+    writer: &mut Writer<W>,
+    value: &Vec<String>,
+) -> Result<(), DekuError> {
+    let str_count = value.len() as u32;
+    str_count.to_writer(writer, ())?;
+
+    for str in value {
+        deku_helper_write_str(writer, str)?;
+    }
+
+    Ok(())
 }
 
 fn deku_helper_write_uuid<W: std::io::Write>(
