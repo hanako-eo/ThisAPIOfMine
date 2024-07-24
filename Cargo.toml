@@ -27,4 +27,4 @@ serde_with = { version = "3.9", features = ["base64", "time_0_3"] }
 tokio = "1.38"
 tokio-postgres = { version = "0.7", features = ["with-uuid-1"] }
 url = "2.5"
-uuid = { version = "1.10", features = ["v4", "macro-diagnostics"] }
+uuid = { version = "1.10", features = ["v4", "macro-diagnostics", "serde"] }

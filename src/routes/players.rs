@@ -17,8 +17,8 @@ struct CreatePlayerParams {
 
 #[derive(Serialize)]
 struct CreatePlayerResponse {
-    uuid: String,
-    token: String,
+    uuid: Uuid,
+    token: Token,
 }
 
 #[post("/v1/players")]
@@ -95,10 +95,7 @@ async fn create(
 
     transaction.commit().await?;
 
-    Ok(HttpResponse::Ok().json(CreatePlayerResponse {
-        uuid: uuid.to_string(),
-        token: token.to_string(),
-    }))
+    Ok(HttpResponse::Ok().json(CreatePlayerResponse { uuid, token }))
 }
 
 #[derive(Deserialize)]

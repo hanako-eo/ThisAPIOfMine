@@ -4,6 +4,7 @@ use std::ops::Deref;
 use actix_web::web::BytesMut;
 use base64::prelude::*;
 use rand_core::{CryptoRng, RngCore};
+use serde::Serialize;
 use tokio_postgres::types::{Format, IsNull, ToSql, Type};
 
 use crate::errors::Result;
@@ -29,6 +30,15 @@ impl Deref for Token {
 
     fn deref(&self) -> &Self::Target {
         self.0.as_ref()
+    }
+}
+
+impl Serialize for Token {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.0.serialize(serializer)
     }
 }
 
