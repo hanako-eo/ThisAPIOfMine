@@ -6,9 +6,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::config::ApiConfig;
+use crate::data::token::Token;
 use crate::errors::api::ErrorCause;
 use crate::errors::api::{ErrorCode, RequestError, RouteError};
-use crate::token::Token;
 
 #[derive(Deserialize)]
 struct CreatePlayerParams {
@@ -105,7 +105,7 @@ struct AuthenticationParams {
 
 #[derive(Serialize)]
 struct AuthenticationResponse {
-    uuid: String,
+    uuid: Uuid,
     nickname: String,
 }
 
@@ -135,12 +135,9 @@ async fn auth(
     // Update last connection time in a separate task as its result won't affect the route
     tokio::spawn(async move { update_player_connection(&pg_client, player_id).await });
 
-    let uuid: Uuid = player_result.try_get(0)?;
-    let nickname: String = player_result.try_get(1)?;
-
     Ok(HttpResponse::Ok().json(AuthenticationResponse {
-        uuid: uuid.to_string(),
-        nickname,
+        uuid: player_result.try_get(0)?,
+        nickname: player_result.try_get(1)?,
     }))
 }
 
