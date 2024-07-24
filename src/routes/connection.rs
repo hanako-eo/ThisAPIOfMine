@@ -1,24 +1,17 @@
 use actix_web::{post, web, HttpResponse, Responder};
 use deadpool_postgres::tokio_postgres::types::Type;
 use serde::{Deserialize, Serialize};
-use token::{ConnectionToken, PlayerData, PrivateConnectionToken, ServerAddress};
 use uuid::Uuid;
 
 use crate::config::ApiConfig;
+use crate::data::connection_token::{ConnectionToken, PrivateConnectionToken, ServerAddress};
+use crate::data::player_data::PlayerData;
 use crate::errors::api::{ErrorCause, ErrorCode, RequestError, RouteError};
 use crate::routes::players::validate_player_token;
-
-mod token;
 
 #[derive(Deserialize)]
 struct GameConnectionParams {
     token: String,
-}
-
-#[derive(Serialize)]
-struct GameConnectionResponse {
-    uuid: String,
-    nickname: String,
 }
 
 #[post("/v1/game/connect")]

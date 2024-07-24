@@ -15,6 +15,7 @@ use crate::fetcher::Fetcher;
 mod app_data;
 mod config;
 mod data;
+mod deku_helper;
 mod errors;
 mod fetcher;
 mod game_data;
