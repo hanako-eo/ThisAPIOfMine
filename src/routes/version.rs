@@ -69,9 +69,9 @@ async fn game_version(
         updater_release.get(&updater_filename),
         game_release.binaries.get(&platform),
     ) else {
-        log::error!("no updater or game binary release found for platform {platform}");
+        log::error!("No updater or game binary release found for platform {platform}");
         return Err(RouteError::NotFoundPlatform(PlatformError::new(format!(
-            "no updater or game binary release found for platform {platform}"
+            "No updater or game binary release found for platform {platform}"
         ))));
     };
 

@@ -110,7 +110,7 @@ impl ResponseError for RouteError {
                     },
                     err_desc: match err_code {
                         ErrorCode::External(_) | ErrorCode::Internal => {
-                            "an internal error occured, please retry later.".to_string()
+                            "An internal error occured, please retry later".to_string()
                         }
                         err_code => err_code.as_str().to_string(),
                     },
@@ -119,11 +119,11 @@ impl ResponseError for RouteError {
             Self::InvalidRequest(err) => {
                 log::error!("{:?} error: {}", err.err_code, err.err_desc);
                 response.json(err)
-            },
+            }
             Self::NotFoundPlatform(err) => {
                 log::error!("Platform error: {}", err.err_desc);
                 response.json(err)
-            },
+            }
         }
     }
 }

@@ -43,7 +43,7 @@ async fn game_connect(
         .await?
         .ok_or(RouteError::InvalidRequest(RequestError::new(
             ErrorCode::AuthenticationInvalidToken,
-            format!("No player has the id '{player_id}'."),
+            format!("No player has the id '{player_id}'"),
         )))?;
 
     let permission_result = pg_client

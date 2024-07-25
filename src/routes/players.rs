@@ -46,15 +46,16 @@ async fn create(
         )));
     }
 
-    if !config.player_allow_non_ascii
-        && !nickname
+    if !config.player_allow_non_ascii {
+        if let Some(char) = nickname
             .chars()
-            .all(|x| x.is_ascii_alphanumeric() || x == ' ' || x == '_')
-    {
-        return Err(RouteError::InvalidRequest(RequestError::new(
-            ErrorCode::NicknameForbiddenCharacters,
-            "Nickname can only have ascii characters".to_string(),
-        )));
+            .find(|&x| !x.is_ascii_alphanumeric() && x != ' ' && x != '_')
+        {
+            return Err(RouteError::InvalidRequest(RequestError::new(
+                ErrorCode::NicknameForbiddenCharacters,
+                format!("Nickname can only have ascii characters (invalid character {char})"),
+            )));
+        }
     }
 
     let uuid = Uuid::new_v4();
@@ -129,7 +130,7 @@ async fn auth(
         .await?
         .ok_or(RouteError::InvalidRequest(RequestError::new(
             ErrorCode::AuthenticationInvalidToken,
-            format!("No player has the id '{player_id}'."),
+            format!("No player has the id '{player_id}'"),
         )))?;
 
     // Update last connection time in a separate task as its result won't affect the route
@@ -148,14 +149,14 @@ pub async fn validate_player_token(
     if token.is_empty() {
         return Err(RouteError::InvalidRequest(RequestError::new(
             ErrorCode::EmptyToken,
-            "The token is empty.".to_string(),
+            "The token is empty".to_string(),
         )));
     }
 
     if token.len() > 64 {
         return Err(RouteError::InvalidRequest(RequestError::new(
             ErrorCode::AuthenticationInvalidToken,
-            format!("The given token '{token}' is invalid (too long)."),
+            format!("The given token '{token}' is invalid (too long)"),
         )));
     }
 
@@ -171,7 +172,7 @@ pub async fn validate_player_token(
         .await?
         .ok_or(RouteError::InvalidRequest(RequestError::new(
             ErrorCode::AuthenticationInvalidToken,
-            format!("No player has the token '{token}'."),
+            format!("No player has the token '{token}'"),
         )))?;
 
     Ok(token_result.try_get(0)?)
@@ -187,11 +188,11 @@ async fn update_player_connection(pg_client: &deadpool_postgres::Client, player_
     {
         Ok(statement) => {
             if let Err(err) = pg_client.execute(&statement, &[&player_id]).await {
-                log::error!("failed to update player {player_id} connection time: {err}");
+                log::error!("Failed to update player {player_id} connection time: {err}");
             }
         }
         Err(err) => {
-            log::error!("failed to update player {player_id} connection time (failed to prepare query): {err}");
+            log::error!("Failed to update player {player_id} connection time (failed to prepare query): {err}");
         }
     }
 }
