@@ -1,6 +1,8 @@
 use actix_web::{post, web, HttpResponse, Responder};
 use deadpool_postgres::tokio_postgres::types::Type;
-use serde::{Deserialize, Serialize};
+use futures::{StreamExt, TryStreamExt};
+use serde::Deserialize;
+use tokio_postgres::Row;
 use uuid::Uuid;
 
 use crate::config::ApiConfig;
@@ -46,17 +48,14 @@ async fn game_connect(
             format!("No player has the id '{player_id}'"),
         )))?;
 
-    let permission_result = pg_client
-        .query(&get_player_permissions, &[&player_id])
-        .await?;
-
-    let mut permissions = Vec::<String>::new();
-    for row in permission_result {
-        permissions.push(row.get(0));
-    }
-
     let uuid: Uuid = player_result.try_get(0)?;
     let nickname: String = player_result.try_get(1)?;
+    let permissions: Vec<String> = pg_client
+        .query_raw(&get_player_permissions, &[&player_id])
+        .await?
+        .map(|row: Result<Row, tokio_postgres::Error>| row.and_then(|row| row.try_get(0)))
+        .try_collect()
+        .await?;
 
     let player_data = PlayerData::new(uuid, nickname, permissions);
 
