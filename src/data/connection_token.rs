@@ -37,27 +37,15 @@ impl EncryptionKeys {
     }
 }
 
-#[derive(Debug, Serialize)]
-pub struct ServerAddress<'s> {
-    address: &'s str,
-    port: u16,
-}
-
-impl<'s> ServerAddress<'s> {
-    pub fn new(address: &'s str, port: u16) -> Self {
-        Self { address, port }
-    }
-}
-
 #[derive(Debug, DekuWrite)]
 #[deku(endian = "little")]
-pub struct AdditionalTokenData {
-    pub token_version: u32,
-    pub expire_timestamp: u64,
+struct AdditionalTokenData {
+    token_version: u32,
+    expire_timestamp: u64,
     #[deku(writer = "deku_helper::write_key(deku::writer, &self.client_to_server_key)")]
-    pub client_to_server_key: chacha20poly1305::Key,
+    client_to_server_key: chacha20poly1305::Key,
     #[deku(writer = "deku_helper::write_key(deku::writer, &self.server_to_client_key)")]
-    pub server_to_client_key: chacha20poly1305::Key,
+    server_to_client_key: chacha20poly1305::Key,
 }
 
 #[serde_as]
@@ -137,5 +125,17 @@ impl<'s> PrivateConnectionToken<'s> {
             api_url,
             player_data,
         }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct ServerAddress<'s> {
+    address: &'s str,
+    port: u16,
+}
+
+impl<'s> ServerAddress<'s> {
+    pub fn new(address: &'s str, port: u16) -> Self {
+        Self { address, port }
     }
 }
