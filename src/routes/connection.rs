@@ -48,6 +48,15 @@ async fn game_connect(
             format!("No player has the id '{player_id}'"),
         )))?;
 
+    let permission_result = pg_client
+        .query(&get_player_permissions, &[&player_id])
+        .await?;
+
+    let mut permissions = Vec::<String>::new();
+    for row in permission_result {
+        permissions.push(row.get(0));
+    }
+
     let uuid: Uuid = player_result.try_get(0)?;
     let nickname: String = player_result.try_get(1)?;
     let permissions: Vec<String> = pg_client
