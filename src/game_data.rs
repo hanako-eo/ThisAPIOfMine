@@ -26,6 +26,7 @@ pub struct Repo {
 pub type Assets = HashMap<String, Asset>;
 
 #[derive(Clone)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub struct GameRelease {
     pub assets: Asset,
     pub assets_version: Version,
