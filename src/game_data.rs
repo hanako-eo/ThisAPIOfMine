@@ -5,6 +5,7 @@ use semver::Version;
 use serde::Serialize;
 
 #[derive(Clone, Serialize)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub struct Asset {
     pub size: i64,
     // serialisation skipped to race with the previous api
@@ -16,6 +17,7 @@ pub struct Asset {
     pub sha256: Option<String>,
 }
 
+#[cfg_attr(test, derive(Debug, PartialEq, Clone))]
 pub struct Repo {
     owner: String,
     repository: String,
@@ -24,6 +26,7 @@ pub struct Repo {
 pub type Assets = HashMap<String, Asset>;
 
 #[derive(Clone)]
+#[cfg_attr(test, derive(Debug, PartialEq))]
 pub struct GameRelease {
     pub assets: Asset,
     pub assets_version: Version,

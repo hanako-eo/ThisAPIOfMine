@@ -4,3 +4,10 @@ use std::any::TypeId;
 pub fn type_eq<T: ?Sized + 'static, U: ?Sized + 'static>() -> bool {
     TypeId::of::<T>() == TypeId::of::<U>()
 }
+
+#[test]
+fn test_type_eq() {
+    assert!(type_eq::<String, String>());
+    assert!(!type_eq::<&str, String>());
+    assert!(!type_eq::<String, i32>());
+}
