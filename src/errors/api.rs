@@ -1,9 +1,8 @@
 use actix_web::body::BoxBody;
 use actix_web::http::StatusCode;
-use actix_web::{HttpResponse, ResponseError};
+use actix_web::{HttpResponse, HttpResponseBuilder, ResponseError};
 use serde::{Serialize, Serializer};
 use std::fmt;
-use strum::AsRefStr;
 
 #[derive(Debug)]
 pub enum ErrorCause {
@@ -11,8 +10,7 @@ pub enum ErrorCause {
     Internal,
 }
 
-#[derive(Debug, Clone, AsRefStr)]
-#[strum(serialize_all = "snake_case")]
+#[derive(Debug, Clone)]
 pub enum ErrorCode {
     FetchUpdaterRelease,
     FetchGameRelease,
@@ -25,7 +23,6 @@ pub enum ErrorCode {
     EmptyToken,
     TokenGenerationFailed,
 
-    #[strum(to_string = "{0}")]
     External(String),
     Internal,
 }
@@ -48,9 +45,29 @@ pub enum RouteError {
     NotFoundPlatform(PlatformError),
 }
 
+impl ErrorCode {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::FetchUpdaterRelease => "fetch_updater_release",
+            Self::FetchGameRelease => "fetch_game_release",
+
+            Self::NicknameEmpty => "nickname_empty",
+            Self::NicknameToolong => "nickname_toolong",
+            Self::NicknameForbiddenCharacters => "nickname_forbidden_characters",
+
+            Self::AuthenticationInvalidToken => "authentication_invalid_token",
+            Self::EmptyToken => "empty_token",
+            Self::TokenGenerationFailed => "token_generation_failed",
+
+            Self::External(str) => str.as_str(),
+            Self::Internal => "internal",
+        }
+    }
+}
+
 impl Serialize for ErrorCode {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.as_ref().serialize(serializer)
+        self.as_str().serialize(serializer)
     }
 }
 
@@ -82,24 +99,31 @@ impl ResponseError for RouteError {
     }
 
     fn error_response(&self) -> HttpResponse<BoxBody> {
+        let mut response = HttpResponseBuilder::new(self.status_code());
         match self {
             Self::ServerError(cause, err_code) => {
-                eprintln!("{cause:?} error: {}", err_code.as_ref());
-                HttpResponse::InternalServerError().json(RequestError {
+                log::error!("{cause:?} error: {}", err_code.as_str());
+                response.json(RequestError {
                     err_code: match err_code {
                         ErrorCode::External(_) => ErrorCode::Internal,
                         err_code => err_code.clone(),
                     },
                     err_desc: match err_code {
                         ErrorCode::External(_) | ErrorCode::Internal => {
-                            "an internal error occured, please retry later.".to_string()
+                            "An internal error occured, please retry later".to_string()
                         }
-                        err_code => err_code.as_ref().to_string(),
+                        err_code => err_code.as_str().to_string(),
                     },
                 })
             }
-            Self::InvalidRequest(err) => HttpResponse::BadRequest().json(err),
-            Self::NotFoundPlatform(err) => HttpResponse::NotFound().json(err),
+            Self::InvalidRequest(err) => {
+                log::error!("{:?} error: {}", err.err_code, err.err_desc);
+                response.json(err)
+            }
+            Self::NotFoundPlatform(err) => {
+                log::error!("Platform error: {}", err.err_desc);
+                response.json(err)
+            }
         }
     }
 }

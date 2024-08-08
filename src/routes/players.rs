@@ -1,13 +1,13 @@
 use actix_web::{post, web, HttpResponse, Responder};
-use base64::prelude::*;
-use base64::Engine;
 use deadpool_postgres::tokio_postgres::types::Type;
 
-use rand_core::{OsRng, RngCore};
+use rand_core::OsRng;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::config::ApiConfig;
+use crate::data::token::Token;
+use crate::errors::api::ErrorCause;
 use crate::errors::api::{ErrorCode, RequestError, RouteError};
 
 #[derive(Deserialize)]
@@ -17,8 +17,8 @@ struct CreatePlayerParams {
 
 #[derive(Serialize)]
 struct CreatePlayerResponse {
-    uuid: String,
-    token: String,
+    uuid: Uuid,
+    token: Token,
 }
 
 #[post("/v1/players")]
@@ -46,15 +46,16 @@ async fn create(
         )));
     }
 
-    if !config.player_allow_non_ascii
-        && !nickname
+    if !config.player_allow_non_ascii {
+        if let Some(char) = nickname
             .chars()
-            .all(|x| x.is_ascii_alphanumeric() || x == ' ' || x == '_')
-    {
-        return Err(RouteError::InvalidRequest(RequestError::new(
-            ErrorCode::NicknameForbiddenCharacters,
-            "Nickname can only have ascii characters".to_string(),
-        )));
+            .find(|&x| !x.is_ascii_alphanumeric() && x != ' ' && x != '_')
+        {
+            return Err(RouteError::InvalidRequest(RequestError::new(
+                ErrorCode::NicknameForbiddenCharacters,
+                format!("Nickname can only have ascii characters (invalid character {char})"),
+            )));
+        }
     }
 
     let uuid = Uuid::new_v4();
@@ -75,10 +76,12 @@ async fn create(
         )
         .await?;
 
-    let mut key = [0u8; 32];
-    OsRng.try_fill_bytes(&mut key)?;
-
-    let token = BASE64_STANDARD.encode(key);
+    let Ok(token) = Token::generate(OsRng) else {
+        return Err(RouteError::ServerError(
+            ErrorCause::Internal,
+            ErrorCode::TokenGenerationFailed,
+        ));
+    };
 
     let transaction = pg_client.transaction().await?;
     let created_player_result = transaction
@@ -93,10 +96,7 @@ async fn create(
 
     transaction.commit().await?;
 
-    Ok(HttpResponse::Ok().json(CreatePlayerResponse {
-        uuid: uuid.to_string(),
-        token,
-    }))
+    Ok(HttpResponse::Ok().json(CreatePlayerResponse { uuid, token }))
 }
 
 #[derive(Deserialize)]
@@ -106,7 +106,7 @@ struct AuthenticationParams {
 
 #[derive(Serialize)]
 struct AuthenticationResponse {
-    uuid: String,
+    uuid: Uuid,
     nickname: String,
 }
 
@@ -130,18 +130,15 @@ async fn auth(
         .await?
         .ok_or(RouteError::InvalidRequest(RequestError::new(
             ErrorCode::AuthenticationInvalidToken,
-            format!("No player has the id '{player_id}'."),
+            format!("No player has the id '{player_id}'"),
         )))?;
 
     // Update last connection time in a separate task as its result won't affect the route
     tokio::spawn(async move { update_player_connection(&pg_client, player_id).await });
 
-    let uuid: Uuid = player_result.try_get(0)?;
-    let nickname: String = player_result.try_get(1)?;
-
     Ok(HttpResponse::Ok().json(AuthenticationResponse {
-        uuid: uuid.to_string(),
-        nickname,
+        uuid: player_result.try_get(0)?,
+        nickname: player_result.try_get(1)?,
     }))
 }
 
@@ -152,14 +149,14 @@ pub async fn validate_player_token(
     if token.is_empty() {
         return Err(RouteError::InvalidRequest(RequestError::new(
             ErrorCode::EmptyToken,
-            "The token is empty.".to_string(),
+            "The token is empty".to_string(),
         )));
     }
 
     if token.len() > 64 {
         return Err(RouteError::InvalidRequest(RequestError::new(
             ErrorCode::AuthenticationInvalidToken,
-            format!("The given token '{token}' is invalid (too long)."),
+            format!("The given token '{token}' is invalid (too long)"),
         )));
     }
 
@@ -175,7 +172,7 @@ pub async fn validate_player_token(
         .await?
         .ok_or(RouteError::InvalidRequest(RequestError::new(
             ErrorCode::AuthenticationInvalidToken,
-            format!("No player has the token '{token}'."),
+            format!("No player has the token '{token}'"),
         )))?;
 
     Ok(token_result.try_get(0)?)
@@ -191,11 +188,11 @@ async fn update_player_connection(pg_client: &deadpool_postgres::Client, player_
     {
         Ok(statement) => {
             if let Err(err) = pg_client.execute(&statement, &[&player_id]).await {
-                eprintln!("failed to update player {player_id} connection time: {err}");
+                log::error!("Failed to update player {player_id} connection time: {err}");
             }
         }
         Err(err) => {
-            eprintln!("failed to update player {player_id} connection time (failed to prepare query): {err}");
+            log::error!("Failed to update player {player_id} connection time (failed to prepare query): {err}");
         }
     }
 }

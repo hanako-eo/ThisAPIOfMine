@@ -6,9 +6,11 @@ use serde::Serialize;
 use serde_with::{base64::Base64, serde_as};
 use std::mem::size_of;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use uuid::Uuid;
 
+use crate::deku_helper;
 use crate::errors::Result;
+
+use super::player_data::PlayerData;
 
 // size_of will give the correct size of a tag (16)
 const XCHACHA20POLY1305_IETF_ABYTES: usize = size_of::<chacha20poly1305::Tag>();
@@ -35,32 +37,20 @@ impl EncryptionKeys {
     }
 }
 
-#[derive(Debug, Serialize)]
-pub struct ServerAddress<'s> {
-    address: &'s str,
-    port: u16,
-}
-
-impl<'s> ServerAddress<'s> {
-    pub fn new(address: &'s str, port: u16) -> Self {
-        Self { address, port }
-    }
-}
-
 #[derive(Debug, DekuWrite)]
 #[deku(endian = "little")]
-pub struct AdditionalTokenData {
-    pub token_version: u32,
-    pub expire_timestamp: u64,
-    #[deku(writer = "deku_helper_write_key(deku::writer, &self.client_to_server_key)")]
-    pub client_to_server_key: chacha20poly1305::Key,
-    #[deku(writer = "deku_helper_write_key(deku::writer, &self.server_to_client_key)")]
-    pub server_to_client_key: chacha20poly1305::Key,
+struct AdditionalTokenData {
+    token_version: u32,
+    expire_timestamp: u64,
+    #[deku(writer = "deku_helper::write_key(deku::writer, &self.client_to_server_key)")]
+    client_to_server_key: chacha20poly1305::Key,
+    #[deku(writer = "deku_helper::write_key(deku::writer, &self.server_to_client_key)")]
+    server_to_client_key: chacha20poly1305::Key,
 }
 
 #[serde_as]
 #[derive(Debug, Serialize)]
-pub struct Token<'a> {
+pub struct ConnectionToken<'a> {
     token_version: u32,
     #[serde_as(as = "Base64")]
     token_nonce: chacha20poly1305::XNonce,
@@ -72,12 +62,12 @@ pub struct Token<'a> {
     private_token_data: Vec<u8>,
 }
 
-impl<'a> Token<'a> {
+impl<'a> ConnectionToken<'a> {
     pub fn generate(
         token_key: chacha20poly1305::Key,
         duration: Duration,
         server_address: ServerAddress<'a>,
-        private_token: PrivateToken,
+        private_token: PrivateConnectionToken,
     ) -> Result<Self> {
         let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?;
 
@@ -119,82 +109,33 @@ impl<'a> Token<'a> {
 }
 
 #[derive(Debug, DekuWrite)]
-#[deku(endian = "endian", ctx = "endian: deku::ctx::Endian")]
-pub struct PlayerData {
-    #[deku(writer = "deku_helper_write_uuid(deku::writer, &self.uuid)")]
-    uuid: Uuid,
-    #[deku(writer = "deku_helper_write_str(deku::writer, &self.nickname)")]
-    nickname: String,
-    #[deku(writer = "deku_helper_write_vec_str(deku::writer, &self.permissions)")]
-    permissions: Vec<String>
-}
-
-impl PlayerData {
-    pub fn generate(uuid: Uuid, nickname: String, permissions: Vec<String>) -> Self {
-        Self { uuid, nickname, permissions }
-    }
-}
-
-#[derive(Debug, DekuWrite)]
 #[deku(endian = "little")]
-pub struct PrivateToken<'s> {
-    #[deku(writer = "deku_helper_write_str(deku::writer, self.api_token)")]
+pub struct PrivateConnectionToken<'s> {
+    #[deku(writer = "deku_helper::write_str(deku::writer, self.api_token)")]
     api_token: &'s str,
-    #[deku(writer = "deku_helper_write_str(deku::writer, self.api_url)")]
+    #[deku(writer = "deku_helper::write_str(deku::writer, self.api_url)")]
     api_url: &'s str,
     player_data: PlayerData,
 }
 
-impl<'s> PrivateToken<'s> {
-    pub fn generate(
-        game_api_url: &'s str,
-        game_api_token: &'s str,
-        player_data: PlayerData,
-    ) -> Self {
+impl<'s> PrivateConnectionToken<'s> {
+    pub fn new(api_url: &'s str, api_token: &'s str, player_data: PlayerData) -> Self {
         Self {
-            api_token: game_api_token,
-            api_url: game_api_url,
+            api_token,
+            api_url,
             player_data,
         }
     }
 }
 
-fn deku_helper_write_key<W: std::io::Write>(
-    writer: &mut Writer<W>,
-    value: &chacha20poly1305::Key,
-) -> Result<(), DekuError> {
-    let str_bytes = value.as_slice();
-    str_bytes.to_writer(writer, ())
+#[derive(Debug, Serialize)]
+pub struct ServerAddress<'s> {
+    address: &'s str,
+    port: u16,
 }
 
-fn deku_helper_write_str<W: std::io::Write>(
-    writer: &mut Writer<W>,
-    value: &str,
-) -> Result<(), DekuError> {
-    let str_bytes = value.as_bytes();
-    let str_len = str_bytes.len() as u32;
-    str_len.to_writer(writer, ())?;
-    str_bytes.to_writer(writer, ())
-}
-
-fn deku_helper_write_vec_str<W: std::io::Write>(
-    writer: &mut Writer<W>,
-    value: &Vec<String>,
-) -> Result<(), DekuError> {
-    let str_count = value.len() as u32;
-    str_count.to_writer(writer, ())?;
-
-    for str in value {
-        deku_helper_write_str(writer, str)?;
+impl<'s> ServerAddress<'s> {
+    pub fn new(address: &'s str, port: u16) -> Self {
+        Self { address, port }
     }
-
-    Ok(())
-}
-
-fn deku_helper_write_uuid<W: std::io::Write>(
-    writer: &mut Writer<W>,
-    value: &Uuid,
-) -> Result<(), DekuError> {
-    let str = value.to_bytes_le();
-    str.to_writer(writer, ())
 }

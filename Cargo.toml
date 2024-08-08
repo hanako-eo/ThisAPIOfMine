@@ -16,6 +16,7 @@ deadpool-postgres = "0.14"
 deku = "0.17"
 env_logger = "0.11"
 futures = "0.3"
+log = "0.4"
 octocrab = "0.38"
 rand_core = "0.6"
 reqwest = { version = "0.12", features = ["charset", "http2", "macos-system-configuration", "rustls-tls"], default-features = false }
@@ -23,8 +24,7 @@ secure-string = { version = "0.3", features = ["serde"] }
 semver = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_with = { version = "3.9", features = ["base64", "time_0_3"] }
-strum = { version = "0.26", features = ["derive"] }
 tokio = "1.38"
 tokio-postgres = { version = "0.7", features = ["with-uuid-1"] }
 url = "2.5"
-uuid = { version = "1.10", features = ["v4", "macro-diagnostics"] }
+uuid = { version = "1.10", features = ["v4", "macro-diagnostics", "serde"] }
